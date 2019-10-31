@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Custom
+venv/
+app.db
+notes.md
+sheme.md
+
 # Distribution / packaging
 .Python
 build/

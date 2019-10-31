@@ -1,0 +1,59 @@
+QMainWindow {
+    min-width: 20em;
+    max-width: 30em;
+    min-height: 7em;
+    color: rgb(53, 53, 53);
+}
+
+WindowText {
+  color: white;
+}
+
+Base {
+  color: rgb(25, 25, 25);
+}
+
+
+AlternateBase {
+  color: rgb(53, 53, 53);
+}
+
+ToolTipBase {
+  color: white;
+}
+
+ToolTipText {
+  color: white;
+}
+
+QText {
+  color: white;
+}
+
+QButton {
+  color: rgb(53, 53, 53);
+}
+
+QPushButton {
+  color: rgb(53, 53, 53);
+}
+
+ButtonText {
+  color: white;
+}
+
+BrightText {
+  color: red;
+}
+
+Link {
+  color: rgb(42, 130, 218);
+}
+
+Highlight {
+  color: rgb(42, 130, 218);
+}
+
+HighlightedText {
+  color: black;
+}
