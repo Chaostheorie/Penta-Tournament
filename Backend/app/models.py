@@ -14,7 +14,7 @@ class User(db.Model):
         self.password = generate_password_hash(password)
 
     def verify_password(self, password):
-        return check_password_hash(password, self.password)
+        return check_password_hash(self.password, password)
 
     def generate_auth_token(self, expiration=600):
         s = Serializer(app.config["SECRET_KEY"], expires_in=expiration)
@@ -26,9 +26,9 @@ class User(db.Model):
         try:
             data = s.loads(token)
         except SignatureExpired:
-            return None  # valid token, but expired
+            return False  # valid token, but expired
         except BadSignature:
-            return None  # invalid token
+            return False  # invalid token
         user = User.query.get(data["id"])
         return user
 

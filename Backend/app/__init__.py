@@ -9,7 +9,7 @@ app.config.from_object(Config)
 if "-d" in sys.argv:
     app.config.from_object(devconfig)
 db = SQLAlchemy(app)
-auth = HTTPBasicAuth(app)
+auth = HTTPBasicAuth()
 
 
 from app.routes import *

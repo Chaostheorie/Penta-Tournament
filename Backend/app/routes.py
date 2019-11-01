@@ -22,7 +22,6 @@ def verify_password(username_or_token, password):
     user = User.verify_auth_token(username_or_token)
     if not user:
         # try to authenticate with username/password
-        print(username_or_token, "+")
         user = User.query.filter_by(username=username_or_token).first()
         if not user or not user.verify_password(password):
             return False
@@ -30,7 +29,7 @@ def verify_password(username_or_token, password):
     return True
 
 
-@app.route("/api/user/sign-in", methods=["POST"])
+@app.route("/api/user/sign-up", methods=["POST"])
 def new_user():
     r = json.loads(request.get_json())
     if "username" not in r.keys() or "password" not in r.keys():
@@ -48,6 +47,14 @@ def new_user():
     return jsonify({"username": user.username}), 201, \
                    {"Location": url_for("get_user", id=user.id,
                                         _external=True)}
+
+
+@app.route("/api/tournaments/create", methods=["POST"])
+@auth.login_required
+def create_tournament():
+    r = json.loads(request.get_json())
+
+    return
 
 
 @auth.error_handler
