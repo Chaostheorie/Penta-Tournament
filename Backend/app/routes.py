@@ -9,11 +9,12 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/user/token", methods=["POST"])
+@app.route("/api/user/token", methods=["GET"])
 @auth.login_required
 def get_auth_token():
-    token = g.user.generate_auth_token()
-    return jsonify({"token": token.decode("ascii")})
+    refresh_token, token = g.user.generate_auth_token()
+    return jsonify({"token": token.decode("ascii"),
+                    "refresh_token": refresh_token.decode("ascii")})
 
 
 @auth.verify_password
@@ -44,16 +45,13 @@ def new_user():
     user.hash_password(password)
     db.session.add(user)
     db.session.commit()
-    return jsonify({"username": user.username}), 201, \
-                   {"Location": url_for("get_user", id=user.id,
-                                        _external=True)}
+    return jsonify({"username": user.username}), 201
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
 @auth.login_required
 def create_tournament():
     r = json.loads(request.get_json())
-
     return
 
 
