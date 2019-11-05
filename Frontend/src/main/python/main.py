@@ -29,19 +29,6 @@ class APIException(Exception):
     """Exceptions for APIBIND Errors 'You fucked up'"""
 
 
-class PicButton(QAbstractButton):
-    def __init__(self, pixmap, parent=None):
-        super(PicButton, self).__init__(parent)
-        self.pixmap = pixmap
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.drawPixmap(event.rect(), self.pixmap)
-
-    def sizeHint(self):
-        return self.pixmap.size()
-
-
 class APIBIND:
     def __init__(self, username=None, password=None):
         self.session = requests.session()
@@ -200,10 +187,10 @@ class PentaTournament(ApplicationContext):
         self.announcmentes_btn.setIcon(QIcon(self.get_resource("announcments.svg")))
         self.announcmentes_btn.setStyleSheet(StyleSheet)
         self.announcmentes_btn.setMinimumSize(QSize(64, 64))
-        self.home_btn.setMaximumSize(self.home_btn.iconSize())
-        self.leaderboard_btn.setMaximumSize(self.leaderboard_btn.iconSize())
-        self.announcmentes_btn.setMaximumSize(self.announcmentes_btn.iconSize())
-        self.tournament_btn.setMaximumSize(self.tournament_btn.iconSize())
+        self.home_btn.setMinimumSize(self.home_btn.iconSize())
+        self.leaderboard_btn.setMinimumSize(self.leaderboard_btn.iconSize())
+        self.announcmentes_btn.setMinimumSize(self.announcmentes_btn.iconSize())
+        self.tournament_btn.setMinimumSize(self.tournament_btn.iconSize())
 
         self.home_btn.clicked.connect(self.button1)
         self.tournament_btn.clicked.connect(self.button2)
@@ -225,6 +212,7 @@ class PentaTournament(ApplicationContext):
         left_layout.setSpacing(0)
         left_layout.setContentsMargins(QMargins(0, 0, 0, 0))
         left_widget = QWidget()
+        left_widget.setA
         left_widget.setLayout(left_layout)
 
         self.right_widget = QTabWidget()
@@ -265,9 +253,8 @@ class PentaTournament(ApplicationContext):
 
     def home(self):
         main_layout = QGridLayout()
-        #[main_layout.addWidget(QLabel())
-        # for user in self.api.get_leaderboard()]
         main_layout.addWidget(QLabel("Leaderboard"), 0, 1)
+        main_lyaout.setContentsMargins(QMargins(0, 0, 0, 0))
         main = QWidget()
         main.setLayout(main_layout)
         return main
@@ -281,9 +268,20 @@ class PentaTournament(ApplicationContext):
         return main
 
     def leaderboards(self):
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(QLabel('page 3'))
-        main_layout.addStretch(5)
+        main_layout = QGridLayout()
+        main_layout.addWidget(QLabel("Top 100 Players"), 0, 1)
+        data = self.api.get_leaderboard()
+        tableWidget = QTableWidget()
+        columns = ["Place", "name", "Score", "Last Tournament"]
+        tableWidget.setColumnCount(len(columns))
+        tableWidget.setRowCount(len(data))
+        tableWidget.setHorizontalHeaderLabels(columns)
+        for x in range(len(data)):
+            for i in range(len(columns)):
+                cell = QTableWidgetItem(str(getattr(data[x], columns[i])))
+                cell.setFlags(Qt.ItemIsEnabled)
+                self.tableWidget.setItem(x, i, cell)
+        main_layout.addWidget(tableWidget)
         main = QWidget()
         main.setLayout(main_layout)
         return main

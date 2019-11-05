@@ -103,3 +103,72 @@ class UserGroups(db.Model):
 
     def __repr__(self):
         return "<UserGroup u:{}/r:{}>".format(self.user_id, self.group_id)
+
+
+class tournaments(db.Model):
+    __tablename__ = "tournaments"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    name = db.Column(db.String())
+    date = db.Column(db.Date())
+    duration = db.Column(db.Integer(), server_default="1", nullable=False)
+    maintainer_id = db.Column(db.Integer(), db.ForeignKey("user.id"))
+    maintainer = db.relationship("user")
+    tournament_games = db.relationship("games", secondary="tournamentgames",
+                                       backref=db.backref("game",
+                                                          lazy="dynamic"))
+
+    def get_players(self, only_id=True):
+        if only_id:
+            res = []
+            [res.append(player.id) for player in
+             [players for players in
+              [game.get_players(with_res=False) for game in self.games]]
+             if player.id not in res]
+            return res
+        else:
+            res = []
+            [res.append(player) for player in
+             [players for players in
+              [game.get_players(with_res=False) for game in self.games]]
+             if player not in res]
+            return res
+
+    def __repr__(self):
+        return f"<tournament {self.id} at {date.strptime('%d.%m.%Y')}>"
+
+
+class games(db.Model):
+    """Table for managing of games"""
+    __tablename__ = "games"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    result = db.Column(db.JSON())  # [{"user_id": int, "points": int}]
+    date = db.Column(db.Date())
+
+    @staticmethod
+    def create_match(rounds=3):
+        """For creating round based matches returns a match object"""
+        return
+
+    def get_players(self, with_res=True):
+        res = None
+        if with_res:
+            return [{"user": User.session.query.filter_by(res["user_id"]
+                                                          ).first(),
+                     "points": res["points"]} for res in self.result]
+        else:
+            return [User.session.query.filter_by(res["user_id"]).first()
+                    for res in self.result]
+
+    def __repr__(self):
+        return f"<game {self.id} from {date.strptime('%d.%m.%Y')}>"
+
+
+class tournamentgames(db.Model):
+    __tablename__ = "tournamentgames"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    game_id = db.Column(db.Integer(),
+                        db.ForeignKey("games.id", ondelete="CASCADE"))
+    tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id"))
