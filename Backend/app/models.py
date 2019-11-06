@@ -1,4 +1,6 @@
+import json
 from app import app, db
+from datetime import date
 from datetime import date
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import (TimedJSONWebSignatureSerializer
@@ -34,6 +36,41 @@ class User(db.Model):
         user = User.query.get(data["id"])
         return user
 
+    def jsonify(self, full=False, points=False):
+        """Retruns json object with user data"""
+        if full:
+            user = dict(
+                        id=self.id, username=self.username, active=self.active,
+                        e_mail=self.e_mail, description=self.description,
+                        groups=[group.name for group in self.groups],
+                        roles=[role.name for role in self.roles]
+                        )
+        else:
+            user = dict(
+                        id=self.id, username=self.username, active=self.active
+                        )
+        if points:
+            user["points"] = self.get_points()
+        return json.dumps(user)
+
+    def get_points(self):
+        if self.last_rated < date.today():
+            return self.calculate_points()
+        else:
+            return self.points
+
+    def calculate_points(self):
+        """The calculation of points will cause a high load"""
+        results = {1: 0, 2: 0, 3: 0, 4: 0}
+        for game in self.games:
+            results[game.get_points(self.id)] += 1
+        self.points = results[4] * 2
+        self.points -= results[1] - results[2]*0.5 - results[3]*0.5
+        self.points = round(self.points)
+        self.last_rated = date.today()
+        db.session.commit()
+        return self.points
+
     # User authentication information
     username = db.Column(db.String(app.config["USER_USERNAME_MAX_LEN"]),
                          nullable=False, unique=True)
@@ -42,6 +79,8 @@ class User(db.Model):
 
     # User information
     e_mail = db.Column(db.String(app.config["USER_EMAIL_MAX_LEN"]))
+    points = db.Column(db.Integer())
+    last_rated = db.Column(db.Date())
     last_seen = db.Column(db.String(100))
     description = db.Column(db.String(300))
     custom_avatar_url = db.Column(db.String(200))
@@ -50,6 +89,8 @@ class User(db.Model):
                              backref=db.backref("user", lazy="dynamic"))
     roles = db.relationship("Role", secondary="user_roles",
                             backref=db.backref("user", lazy="dynamic"))
+    games = db.relationship("games", secondary="user_games",
+                            backref=db.backref("User", lazy="dynamic"))
 
     def __repr__(self):
         return "<User {}>".format(self.username)
@@ -113,9 +154,8 @@ class tournaments(db.Model):
     date = db.Column(db.Date())
     duration = db.Column(db.Integer(), server_default="1", nullable=False)
     maintainer_id = db.Column(db.Integer(), db.ForeignKey("user.id"))
-    maintainer = db.relationship("user")
-    tournament_games = db.relationship("games", secondary="tournamentgames",
-                                       backref=db.backref("game",
+    tournament_games = db.relationship("games", secondary="tournament_games",
+                                       backref=db.backref("played_games",
                                                           lazy="dynamic"))
 
     def get_players(self, only_id=True):
@@ -151,24 +191,38 @@ class games(db.Model):
         """For creating round based matches returns a match object"""
         return
 
-    def get_players(self, with_res=True):
-        res = None
-        if with_res:
-            return [{"user": User.session.query.filter_by(res["user_id"]
-                                                          ).first(),
-                     "points": res["points"]} for res in self.result]
+    def get_points(self, user, only_id=True):
+        if only_id:
+            points = [result for result in self.result
+                      if result["user_id"] == user][0]["points"]
         else:
-            return [User.session.query.filter_by(res["user_id"]).first()
-                    for res in self.result]
+            points = [result for result in self.result
+                      if result["user_id"] == user.id][0]["points"]
+        print(points)
+        return points[0]
+
+    players = db.relationship("User", secondary="user_games",
+                              backref=db.backref("players", lazy="dynamic"))
 
     def __repr__(self):
-        return f"<game {self.id} from {date.strptime('%d.%m.%Y')}>"
+        return f"<game {self.id} from {self.date.strftime('%d.%m.%Y')}>"
 
 
 class tournamentgames(db.Model):
-    __tablename__ = "tournamentgames"
+    __tablename__ = "tournament_games"
 
     id = db.Column(db.Integer(), primary_key=True)
     game_id = db.Column(db.Integer(),
                         db.ForeignKey("games.id", ondelete="CASCADE"))
-    tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id"))
+    tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id",
+                                                          ondelete="CASCADE"))
+
+
+class Usergames(db.Model):
+    __tablename__ = "user_games"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    game_id = db.Column(db.Integer(),
+                        db.ForeignKey("games.id", ondelete="CASCADE"))
+    user_id = db.Column(db.Integer(),
+                        db.ForeignKey("user.id", ondelete="CASCADE"))

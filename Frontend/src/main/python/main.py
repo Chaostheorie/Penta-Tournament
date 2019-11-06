@@ -51,8 +51,8 @@ class APIBIND:
 
     def renew_token(self):
         paylod = {"refresh_token": self.refresh_token, "password": None}
-        r = self.get("http://localhost:5000/api/user/token", payload,
-                     credentials=False, refresh=False)
+        r = self.request("user/token", payload,
+                         credentials=False, refresh=False, method="GET")
         if r.status_code == 400:
             pass
         self.token = r.json()["token"]
@@ -60,7 +60,12 @@ class APIBIND:
 
     def sign_up(self, username, password):
         payload = {"username": username, "password": password}
-        return self.request("/api/user/sign-up", payload)
+        return self.request("user/sign-up", payload)
+
+    def get_leaderboard(self):
+        paylod = {"down_to": 100}
+        r = self.request("user/leaderboard", payload, method="GET")
+        return r
 
     def request(endpoint, payload, method="POST",
                 credentials=True, refresh=True):
@@ -254,7 +259,7 @@ class PentaTournament(ApplicationContext):
     def home(self):
         main_layout = QGridLayout()
         main_layout.addWidget(QLabel("Leaderboard"), 0, 1)
-        main_lyaout.setContentsMargins(QMargins(0, 0, 0, 0))
+        main_layout.setContentsMargins(QMargins(0, 0, 0, 0))
         main = QWidget()
         main.setLayout(main_layout)
         return main
