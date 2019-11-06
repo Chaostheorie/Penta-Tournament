@@ -178,6 +178,16 @@ class tournaments(db.Model):
         return f"<tournament {self.id} at {date.strptime('%d.%m.%Y')}>"
 
 
+class matchgames(db.Model):
+    __tablename__ = "match_games"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    master_id = db.Column(db.Integer(),
+                          db.ForeignKey("games.id", ondelete="CASCADE"))
+    slave_id = db.Column(db.Integer(),
+                         db.ForeignKey("games.id", ondelete="CASCADE"))
+
+
 class games(db.Model):
     """Table for managing of games"""
     __tablename__ = "games"
@@ -185,22 +195,40 @@ class games(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     result = db.Column(db.JSON())  # [{"user_id": int, "points": int}]
     date = db.Column(db.Date())
+    type = db.Column(db.Boolean(), server_default="1")  # 1 = Master/ Single
 
     @staticmethod
     def create_match(rounds=3):
         """For creating round based matches returns a match object"""
-        return
+        master = games(date=date.today(), result=None, type=True)
+        slaves = [games(date=date.today(), result=[], type=False)
+                  for _ in range(3)]
+        db.session.add(master)
+        [db.session.add(game) for game in slaves]
+        db.session.commit()
+        db.session.flush()
+        [db.session.add(matchgames(slave_id=g.id, master_id=master.id))
+         for g in slaves]
+        db.session.commit()
+        return master
 
     def get_points(self, user, only_id=True):
         if only_id:
-            points = [result for result in self.result
-                      if result["user_id"] == user][0]["points"]
+            points = [result["points"] for result in self.result
+                      if result["user_id"] == user]
         else:
-            points = [result for result in self.result
-                      if result["user_id"] == user.id][0]["points"]
-        print(points)
+            points = [result["points"] for result in self.result
+                      if result["user_id"] == user.id]
         return points[0]
 
+    mastered_rel = db.relationship("games", secondary="match_games",
+                                   backref=db.backref("mastered_by"),
+                                   primaryjoin=(matchgames.master_id == id),
+                                   secondaryjoin=(matchgames.slave_id == id))
+    master_rel = db.relationship("games", secondary="match_games",
+                                 backref=db.backref("master_of"),
+                                 primaryjoin=(matchgames.slave_id == id),
+                                 secondaryjoin=(matchgames.master_id == id))
     players = db.relationship("User", secondary="user_games",
                               backref=db.backref("players", lazy="dynamic"))
 
@@ -216,6 +244,8 @@ class tournamentgames(db.Model):
                         db.ForeignKey("games.id", ondelete="CASCADE"))
     tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id",
                                                           ondelete="CASCADE"))
+
+
 
 
 class Usergames(db.Model):
