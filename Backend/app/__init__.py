@@ -1,4 +1,6 @@
 import sys
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
@@ -10,6 +12,20 @@ if "-d" in sys.argv:
     app.config.from_object(devconfig)
 db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
+
+cron = BackgroundScheduler(daemon=True)
+# Explicitly kick off the background thread
+cron.start()
+
+
+
+import app.utils as utils
+from app.utils.maintenance import maintenance
+cron.add_job(maintenance, "date", run_date=utils.tomorrow())
+
+
+# Shutdown your cron thread if the web process is stopped
+atexit.register(lambda: cron.shutdown(wait=False))
 
 
 from app.routes import *

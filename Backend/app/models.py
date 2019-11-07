@@ -1,7 +1,6 @@
 import json
 from app import app, db
 from datetime import date
-from datetime import date
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
@@ -23,6 +22,11 @@ class User(db.Model):
         refresh_token = Serializer(app.config["SECRET_KEY"],
                                    expires_in=expiration*36)
         return refresh_token.dumps({"id": self.id}), s.dumps({"id": self.id})
+
+    def add_role(self, role):
+        db.session.add(UserRoles(user_id=self.id, role_id=role.id))
+        db.session.commit()
+        return
 
     @staticmethod
     def verify_auth_token(token):
@@ -53,14 +57,8 @@ class User(db.Model):
             user["points"] = self.get_points()
         return json.dumps(user)
 
-    def get_points(self):
-        if self.last_rated < date.today():
-            return self.calculate_points()
-        else:
-            return self.points
-
     def calculate_points(self):
-        """The calculation of points will cause a high load"""
+        """The calculation of points will cause a relatively high load"""
         results = {1: 0, 2: 0, 3: 0, 4: 0}
         for game in self.games:
             results[game.get_points(self.id)] += 1
@@ -158,21 +156,26 @@ class tournaments(db.Model):
                                        backref=db.backref("played_games",
                                                           lazy="dynamic"))
 
-    def get_players(self, only_id=True):
-        if only_id:
+    def get_players(self, only_id=True, jsonify=False):
+        if jsonify:
+            res = []
+            [res.append(player.jsonify()) for player in
+             [players for players in
+              [game.get_players(with_res=False) for game in self.games]]
+             if player.id not in res]
+        elif only_id:
             res = []
             [res.append(player.id) for player in
              [players for players in
               [game.get_players(with_res=False) for game in self.games]]
              if player.id not in res]
-            return res
         else:
             res = []
             [res.append(player) for player in
              [players for players in
               [game.get_players(with_res=False) for game in self.games]]
              if player not in res]
-            return res
+        return res
 
     def __repr__(self):
         return f"<tournament {self.id} at {date.strptime('%d.%m.%Y')}>"
@@ -207,8 +210,8 @@ class games(db.Model):
         [db.session.add(game) for game in slaves]
         db.session.commit()
         db.session.flush()
-        [db.session.add(matchgames(slave_id=g.id, master_id=master.id))
-         for g in slaves]
+        [db.session.add(matchgames(slave_id=game.id, master_id=master.id))
+         for game in slaves]
         db.session.commit()
         return master
 
@@ -244,8 +247,6 @@ class tournamentgames(db.Model):
                         db.ForeignKey("games.id", ondelete="CASCADE"))
     tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id",
                                                           ondelete="CASCADE"))
-
-
 
 
 class Usergames(db.Model):

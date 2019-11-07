@@ -1,6 +1,9 @@
 import json
 from flask import render_template, g, request, abort, jsonify, make_response
-from app.models import User
+from datetime import date, datetime
+from sqlalchemy.exc import OperationalError
+from app.models import User, tournaments
+from app.utils import requeries_json_keys
 from app import app, auth, db
 
 
@@ -50,11 +53,37 @@ def new_user():
 
 @app.route("/api/tournaments/create", methods=["POST"])
 @auth.login_required
+@requeries_json_keys(["name", "day"])
 def create_tournament():
-    r = json.loads(request.get_json())
-    return
+    r = request.get_json()
+    try:
+        t = tournaments(name=r["name"], maintainer_id=g.user.id,
+                        day=datetime.strptime(r["day"], "%d.%m.%Y").date())
+        db.session.add(t)
+        db.session.commit()
+    except OperationalError:
+        db.session.rollback()
+        return abort(400)
+    except ValueError:
+        db.session.rollback()
+        return abort(400)
+    finally:
+        pass
+
+    # return jsonify()
 
 
 @auth.error_handler
 def unauthorized():
     return make_response(jsonify({"error": "Unauthorized access"}), 401)
+
+
+@app.before_request
+def before_request_hook():
+    """Hook for signal if maintenance's ongoing or load is to high"""
+    if app.maintenance:
+        e = "The server is currently unable to handle the request due to a \
+             temporary overloading or maintenance of the server."
+        return make_response(jsonify({"error": e}), 503)
+    else:
+        pass

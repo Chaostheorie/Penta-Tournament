@@ -31,7 +31,6 @@ class APIException(Exception):
 
 class APIBIND:
     def __init__(self, username=None, password=None):
-        self.session = requests.session()
         if username is not None and password is not None:
             self.connect(username, password)
             self.username = username
@@ -39,7 +38,8 @@ class APIBIND:
     def connect(self, username, password):
         auth = requests.auth.HTTPBasicAuth(username=username,
                                            password=password)
-        r = self.session.get("http://localhost:5000/api/user/token", auth=auth)
+        s = requests.session()
+        r = s.get("http://localhost:5000/api/user/token", auth=auth)
         if r.status_code != 200:
             raise CredentialsExption("Password or Username is Wrong")
         try:
@@ -63,27 +63,28 @@ class APIBIND:
         return self.request("user/sign-up", payload)
 
     def get_leaderboard(self):
-        paylod = {"down_to": 100}
-        r = self.request("user/leaderboard", payload, method="GET")
+        payload = {"down_to": 100}
+        r = self.request("user/leaderboard", payload, "GET")
         return r
 
-    def request(endpoint, payload, method="POST",
+    def request(self, endpoint, payload, method="POST",
                 credentials=True, refresh=True):
+        session = requests.session()
         if credentials:
             payload["username"] = self.token
             payload["password"] = None
         payload = json.dumps(payload)
         if method == "POST":
-            r = self.session.post(f"http://localhost:5000/api/{endpoint}",
+            r = session.post(f"http://localhost:5000/api/{endpoint}",
                                   payload)
         elif method == "PUT":
-            r = self.session.put(f"http://localhost:5000/api/{endpoint}",
+            r = session.put(f"http://localhost:5000/api/{endpoint}",
                                  payload)
         elif method == "GET":
-            r = self.session.get(f"http://localhost:5000/api/{endpoint}",
-                                 payload)
+            r = session.get(f"http://localhost:5000/api/{endpoint}",
+                                 payload=payload)
         elif method == "DELETE":
-            r = self.session.delete(f"http://localhost:5000/api/{endpoint}",
+            r = session.delete(f"http://localhost:5000/api/{endpoint}",
                                     payload)
         else:
             raise APIException(f"Method '{method}' not allowed")
