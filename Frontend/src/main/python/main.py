@@ -9,7 +9,6 @@ import requests  # API requests
 import sys
 import time
 import json  # JSON handling
-import ast  # JSON list handling
 
 
 class CredentialsExption(Exception):
@@ -64,8 +63,7 @@ class APIBIND:
         return self.request("user/sign-up", payload, credentials=False)
 
     def parse_list(self, request):
-        print(request.json())
-        return list(map(json.loads, request.text))
+        return [json.loads(chunk) for chunk in request.json()]
 
     def get_leaderboard(self):
         payload = {"down_to": 100}
@@ -221,7 +219,6 @@ class PentaTournament(ApplicationContext):
         left_layout.setSpacing(0)
         left_layout.setContentsMargins(QMargins(0, 0, 0, 0))
         left_widget = QWidget()
-        left_widget.setA
         left_widget.setLayout(left_layout)
 
         self.right_widget = QTabWidget()
@@ -283,7 +280,7 @@ class PentaTournament(ApplicationContext):
         tableWidget = QTableWidget()
         tableWidget.verticalHeader().setVisible(False)
         _columns = ["Place", "name", "Score", "Last Tournament"]
-        columns = ["id", "username", "points"]
+        columns = ["id", "points", "username"]
         tableWidget.setColumnCount(len(columns))
         tableWidget.setRowCount(len(data))
         tableWidget.setHorizontalHeaderLabels(columns)
@@ -291,8 +288,10 @@ class PentaTournament(ApplicationContext):
             for i in range(len(columns)):
                 cell = QTableWidgetItem(str(data[x][columns[i]]))
                 cell.setFlags(Qt.ItemIsEnabled)
-                self.tableWidget.setItem(x, i, cell)
-        main_layout.addWidget(tableWidget)
+                tableWidget.setItem(x, i, cell)
+        tableWidget.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        tableWidget.horizontalHeader().setStretchLastSection(True)
+        main_layout.addWidget(tableWidget, 1, 1)
         main = QWidget()
         main.setLayout(main_layout)
         return main
