@@ -33,11 +33,24 @@ def verify_password(username_or_token, password):
     return True
 
 
+@app.route("/api/user/leaderboard", methods=["POST"])
+def get_leaderboard():
+    try:
+        r = json.loads(request.get_json())
+    except TypeError:
+        r = None
+    if r is not None and "limit" in r.keys():
+        try:
+            return jsonify(User.get_leaderboard(limit=int(r["limit"])))
+        except ValueError:
+            return abort(400)
+    return jsonify(User.get_leaderboard())
+
+
 @app.route("/api/user/sign-up", methods=["POST"])
+@requeries_json_keys(["username", "password"])
 def new_user():
-    r = json.loads(request.get_json())
-    if "username" not in r.keys() or "password" not in r.keys():
-        abort(400)  # Missing keys
+    r = request.get_json()
     username = r["username"]
     password = r["password"]
     if username is None or password is None:

@@ -50,11 +50,9 @@ class User(db.Model):
                         roles=[role.name for role in self.roles]
                         )
         else:
-            user = dict(
-                        id=self.id, username=self.username, active=self.active
-                        )
+            user = dict(id=self.id, username=self.username)
         if points:
-            user["points"] = self.get_points()
+            user["points"] = self.points
         return json.dumps(user)
 
     def calculate_points(self):
@@ -68,6 +66,12 @@ class User(db.Model):
         self.last_rated = date.today()
         db.session.commit()
         return self.points
+
+    @staticmethod
+    def get_leaderboard(limit=100):
+        return [user.jsonify(points=True)
+                for user in User.query.order_by(User.points.desc()
+                                                ).limit(limit)]
 
     # User authentication information
     username = db.Column(db.String(app.config["USER_USERNAME_MAX_LEN"]),

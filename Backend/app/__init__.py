@@ -16,8 +16,7 @@ auth = HTTPBasicAuth()
 cron = BackgroundScheduler(daemon=True)
 # Explicitly kick off the background thread
 cron.start()
-
-
+app.maintenance = False
 
 import app.utils as utils
 from app.utils.maintenance import maintenance

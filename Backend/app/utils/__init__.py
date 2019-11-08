@@ -1,14 +1,19 @@
 from app import db, cron
 from datetime import date, timedelta
-from flask import request
+from flask import request, abort
+from simplejson.errors import JSONDecodeError
 import functools
+import json
 
 
 def requeries_json_keys(keys):
     def actual_decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            data = request.get_json()
+            try:
+                data = request.get_json(force=True, cache=True)
+            except JSONDecodeError:
+                return abort(400)
             if len([rkey for rkey in keys
                     if rkey not in data]) >= 1:
                 return abort(400)

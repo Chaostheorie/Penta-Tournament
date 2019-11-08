@@ -5,10 +5,11 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-import requests
+import requests  # API requests
 import sys
 import time
-import json
+import json  # JSON handling
+import ast  # JSON list handling
 
 
 class CredentialsExption(Exception):
@@ -31,6 +32,7 @@ class APIException(Exception):
 
 class APIBIND:
     def __init__(self, username=None, password=None):
+        self.session = requests.session()
         if username is not None and password is not None:
             self.connect(username, password)
             self.username = username
@@ -38,8 +40,7 @@ class APIBIND:
     def connect(self, username, password):
         auth = requests.auth.HTTPBasicAuth(username=username,
                                            password=password)
-        s = requests.session()
-        r = s.get("http://localhost:5000/api/user/token", auth=auth)
+        r = self.session.get("http://localhost:5000/api/user/token", auth=auth)
         if r.status_code != 200:
             raise CredentialsExption("Password or Username is Wrong")
         try:
@@ -60,31 +61,33 @@ class APIBIND:
 
     def sign_up(self, username, password):
         payload = {"username": username, "password": password}
-        return self.request("user/sign-up", payload)
+        return self.request("user/sign-up", payload, credentials=False)
+
+    def parse_list(self, request):
+        print(request.json())
+        return list(map(json.loads, request.text))
 
     def get_leaderboard(self):
         payload = {"down_to": 100}
-        r = self.request("user/leaderboard", payload, "GET")
-        return r
+        r = self.request("user/leaderboard", payload, "POST")
+        return self.parse_list(r)
 
     def request(self, endpoint, payload, method="POST",
                 credentials=True, refresh=True):
-        session = requests.session()
         if credentials:
             payload["username"] = self.token
             payload["password"] = None
         payload = json.dumps(payload)
         if method == "POST":
-            r = session.post(f"http://localhost:5000/api/{endpoint}",
-                                  payload)
+            r = self.session.post(f"http://localhost:5000/api/{endpoint}",
+                                  data=payload)
         elif method == "PUT":
-            r = session.put(f"http://localhost:5000/api/{endpoint}",
+            r = self.session.put(f"http://localhost:5000/api/{endpoint}",
                                  payload)
         elif method == "GET":
-            r = session.get(f"http://localhost:5000/api/{endpoint}",
-                                 payload=payload)
+            r = self.session.get(f"http://localhost:5000/api/{endpoint}")
         elif method == "DELETE":
-            r = session.delete(f"http://localhost:5000/api/{endpoint}",
+            r = self.session.delete(f"http://localhost:5000/api/{endpoint}",
                                     payload)
         else:
             raise APIException(f"Method '{method}' not allowed")
@@ -278,13 +281,15 @@ class PentaTournament(ApplicationContext):
         main_layout.addWidget(QLabel("Top 100 Players"), 0, 1)
         data = self.api.get_leaderboard()
         tableWidget = QTableWidget()
-        columns = ["Place", "name", "Score", "Last Tournament"]
+        tableWidget.verticalHeader().setVisible(False)
+        _columns = ["Place", "name", "Score", "Last Tournament"]
+        columns = ["id", "username", "points"]
         tableWidget.setColumnCount(len(columns))
         tableWidget.setRowCount(len(data))
         tableWidget.setHorizontalHeaderLabels(columns)
         for x in range(len(data)):
             for i in range(len(columns)):
-                cell = QTableWidgetItem(str(getattr(data[x], columns[i])))
+                cell = QTableWidgetItem(str(data[x][columns[i]]))
                 cell.setFlags(Qt.ItemIsEnabled)
                 self.tableWidget.setItem(x, i, cell)
         main_layout.addWidget(tableWidget)
