@@ -19,6 +19,6 @@ Web app for managing of Penta Game tournaments
 
 - RESTful web api with Role based Authorization
 
-![Digramm](https://github.com/Chaostheorie/Penta-Tournament/blob/master/diagram.svg)
+![](https://github.com/Chaostheorie/Penta-Tournament/blob/master/diagram.svg)
 
 - Allows the client (and everyone else) to access te full data
