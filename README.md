@@ -15,7 +15,10 @@ Web app for managing of Penta Game tournaments
 - PyQt5 gui applicatin (through fbs) for Linux/ MacOS and Windows
 - RESTful API backend with User authentification and token based session implementation
 
-## Website
+## WebAPI
 
-- Leaderboards and Announcments
-- Help for Gui Application
+- RESTful web api with Role based Authorization
+
+![Digramm](https://github.com/Chaostheorie/Penta-Tournament/blob/master/diagram.svg)
+
+- Allows the client (and everyone else) to access te full data

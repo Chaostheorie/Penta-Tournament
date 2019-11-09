@@ -63,11 +63,19 @@ class APIBIND:
         return self.request("user/sign-up", payload, credentials=False)
 
     def parse_list(self, request):
-        return [json.loads(chunk) for chunk in request.json()]
+        try:
+            return [json.loads(chunk) for chunk in request.json()]
+        except JSONDecodeError:
+            raise APIException("JSON List was invalid")
 
     def get_leaderboard(self):
         payload = {"down_to": 100}
         r = self.request("user/leaderboard", payload, "POST")
+        return self.parse_list(r)
+
+    def get_tournaments(self):
+        payload = {"limit": 10}
+        r = self.request("tournaments/ongoing", payload, "POST")
         return self.parse_list(r)
 
     def request(self, endpoint, payload, method="POST",
@@ -162,8 +170,11 @@ class PentaTournament(ApplicationContext):
             self.alert("Username or Password is wrong")
             self.password.setText("")
         except APIException:
-            self.alert("Server Seems to be sending faulty responses \n \
-                        Please Check your Network Connection")
+            error = """
+            Server Seems to be sending faulty responses
+            Please Check your Network Connection
+            """
+            self.alert(error)
 
     def create_fronted(self):
         self.main_widget = QWidget()
@@ -171,9 +182,9 @@ class PentaTournament(ApplicationContext):
         # add all widgets
         self.home_btn = QPushButton()
         self.home_btn.minimumSize()
-        home_icon = QIcon(self.get_resource("inapp.svg"))
-        self.home_btn.setIcon(home_icon)
-        self.home_btn.setMinimumSize(QSize(64, 64))
+        self.home_btn.setIcon(QIcon(self.get_resource("inapp.svg")))
+        self.home_btn.setMinimumSize(QSize(48, 64))
+        self.home_btn.setFixedWidth(48)
         StyleSheet = """QPushButton {border: solid;
                                     background-color: lightgreen; padding: 0px;
                                      }"""
@@ -185,19 +196,18 @@ class PentaTournament(ApplicationContext):
                                      background-color: lightgray; padding: 0px;
                                      }"""
         self.tournament_btn.setStyleSheet(StyleSheet)
-        self.tournament_btn.setMinimumSize(QSize(64, 64))
+        self.tournament_btn.setMinimumSize(QSize(48, 64))
+        self.tournament_btn.setMaximumWidth(48)
         self.leaderboard_btn = QPushButton()
-        self.leaderboard_btn.setIcon(QIcon(self.get_resource("inapp.svg")))
+        self.leaderboard_btn.setIcon(QIcon(self.get_resource("podium.svg")))
         self.leaderboard_btn.setStyleSheet(StyleSheet)
-        self.leaderboard_btn.setMinimumSize(QSize(64, 64))
+        self.leaderboard_btn.setMinimumSize(QSize(48, 64))
+        self.leaderboard_btn.setMaximumWidth(48)
         self.announcmentes_btn = QPushButton()
         self.announcmentes_btn.setIcon(QIcon(self.get_resource("announcments.svg")))
         self.announcmentes_btn.setStyleSheet(StyleSheet)
-        self.announcmentes_btn.setMinimumSize(QSize(64, 64))
-        self.home_btn.setMinimumSize(self.home_btn.iconSize())
-        self.leaderboard_btn.setMinimumSize(self.leaderboard_btn.iconSize())
-        self.announcmentes_btn.setMinimumSize(self.announcmentes_btn.iconSize())
-        self.tournament_btn.setMinimumSize(self.tournament_btn.iconSize())
+        self.announcmentes_btn.setMinimumSize(QSize(48, 64))
+        self.announcmentes_btn.setMaximumWidth(48)
 
         self.home_btn.clicked.connect(self.button1)
         self.tournament_btn.clicked.connect(self.button2)
@@ -214,12 +224,13 @@ class PentaTournament(ApplicationContext):
         left_layout.addWidget(self.home_btn)
         left_layout.addWidget(self.tournament_btn)
         left_layout.addWidget(self.leaderboard_btn)
-        left_layout.addWidget(self.announcmentes_btn, -1)
+        left_layout.addWidget(self.announcmentes_btn)
         left_layout.addStretch(5)
         left_layout.setSpacing(0)
         left_layout.setContentsMargins(QMargins(0, 0, 0, 0))
         left_widget = QWidget()
         left_widget.setLayout(left_layout)
+        left_widget.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
 
         self.right_widget = QTabWidget()
         self.right_widget.tabBar().setObjectName("mainTab")
@@ -232,13 +243,13 @@ class PentaTournament(ApplicationContext):
         self.right_widget.setCurrentIndex(0)
         self.right_widget.setStyleSheet('''QTabBar::tab{width: 0; \
             height: 0; margin: 0; padding: 0; border: none;}''')
+        self.right_widget.setSizePolicy(QSizePolicy.Expanding,
+                                        QSizePolicy.Expanding)
 
-        main_layout = QHBoxLayout()
+        main_layout = QGridLayout()
         left_widget.setFixedWidth(self.home_btn.size().width())
-        main_layout.addWidget(left_widget)
-        main_layout.addWidget(self.right_widget)
-        main_layout.setStretch(0, 40)
-        main_layout.setStretch(1, 200)
+        main_layout.addWidget(left_widget, 0, 0)
+        main_layout.addWidget(self.right_widget, 0, 1)
         main_layout.setSpacing(0)
         self.frontend = QWidget()
         self.frontend.setLayout(main_layout)
@@ -246,63 +257,99 @@ class PentaTournament(ApplicationContext):
         self.main_window.showMaximized()
 
     def button1(self):
+        self.update_home()
         self.right_widget.setCurrentIndex(0)
 
     def button2(self):
+        self.update_tournaments()
         self.right_widget.setCurrentIndex(1)
 
     def button3(self):
+        self.update_leaderboard()
         self.right_widget.setCurrentIndex(2)
 
     def button4(self):
         self.right_widget.setCurrentIndex(3)
 
+    def clear_layout(self, layout):
+        for i in reversed(range(layout.count())):
+            layout.itemAt(i).widget().setParent(None)
+        return
+
+    def update_home(self):
+        return
+
+    def update_tournaments(self):
+        print(1)
+        self.clear_layout(self.to_layout)
+        for tournament in self.api.get_tournaments():
+            to_layout = QHBoxLayout()
+            to_layout.addWidget(QLabel(tournament["name"]))
+            to_layout.addWidget(QLabel(str(tournament["participants"]) + " participants"))
+            to_layout.addWidget(QLabel(tournament["date"]))
+            to_layout.addWidget(QLabel(f"Maintained by {tournament['maintainer_username']}"))
+            to = QWidget()
+            to.setLayout(to_layout)
+            self.to_layout.addWidget(to)
+        self.to.show()
+        return
+
+    def update_leaderboard(self):
+        return
+
     def home(self):
-        main_layout = QGridLayout()
-        main_layout.addWidget(QLabel("Leaderboard"), 0, 1)
-        main_layout.setContentsMargins(QMargins(0, 0, 0, 0))
-        main = QWidget()
-        main.setLayout(main_layout)
-        return main
+        self.home_layout = QGridLayout()
+        self.home_layout.addWidget(QLabel("Home"), 0, 1)
+        self.home_layout.setContentsMargins(QMargins(0, 0, 0, 0))
+        self.home = QWidget()
+        self.home.setLayout(self.home_layout)
+        return self.home
 
     def tournaments(self):
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(QLabel('page 2'))
-        main_layout.addStretch(5)
-        main = QWidget()
-        main.setLayout(main_layout)
-        return main
+        self.to_layout = QVBoxLayout()
+        for tournament in self.api.get_tournaments():
+            to_layout = QHBoxLayout()
+            to_layout.addWidget(QLabel(tournament["name"]))
+            to_layout.addWidget(QLabel(str(tournament["participants"]) + " participants"))
+            to_layout.addWidget(QLabel(tournament["date"]))
+            to_layout.addWidget(QLabel(f"Maintained by {tournament['maintainer_username']}"))
+            to = QWidget()
+            to.setLayout(to_layout)
+            self.to_layout.addWidget(to)
+        self.to = QWidget()
+        self.to.setLayout(self.to_layout)
+        return self.to
 
     def leaderboards(self):
-        main_layout = QGridLayout()
-        main_layout.addWidget(QLabel("Top 100 Players"), 0, 1)
+        self.leaderboard_layout = QGridLayout()
+        self.leaderboard_layout.addWidget(QLabel("Top 100 Players - Updated every 24 Hours"), 0, 1)
         data = self.api.get_leaderboard()
-        tableWidget = QTableWidget()
-        tableWidget.verticalHeader().setVisible(False)
+        self.leaderboard_tableWidget = QTableWidget()
+        self.leaderboard_tableWidget.verticalHeader().setVisible(False)
         _columns = ["Place", "name", "Score", "Last Tournament"]
         columns = ["id", "points", "username"]
-        tableWidget.setColumnCount(len(columns))
-        tableWidget.setRowCount(len(data))
-        tableWidget.setHorizontalHeaderLabels(columns)
+        self.leaderboard_tableWidget.setColumnCount(len(columns))
+        self.leaderboard_tableWidget.setRowCount(len(data))
+        self.leaderboard_tableWidget.setHorizontalHeaderLabels(columns)
         for x in range(len(data)):
             for i in range(len(columns)):
                 cell = QTableWidgetItem(str(data[x][columns[i]]))
                 cell.setFlags(Qt.ItemIsEnabled)
-                tableWidget.setItem(x, i, cell)
-        tableWidget.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-        tableWidget.horizontalHeader().setStretchLastSection(True)
-        main_layout.addWidget(tableWidget, 1, 1)
-        main = QWidget()
-        main.setLayout(main_layout)
-        return main
+                self.leaderboard_tableWidget.setItem(x, i, cell)
+        self.leaderboard_tableWidget.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        self.leaderboard_tableWidget.horizontalHeader().setStretchLastSection(True)
+        self.leaderboard_layout.addWidget(self.leaderboard_tableWidget, 1, 1)
+        self.leaderboard = QWidget()
+        self.leaderboard.setLayout(self.leaderboard_layout)
+        return self.leaderboard
 
     def announcmentes(self):
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(QLabel('page 4'))
-        main_layout.addStretch(5)
-        main = QWidget()
-        main.setLayout(main_layout)
-        return main
+        self.announcmentes_layout = QHBoxLayout()
+        self.announcmentes_layout.addWidget(QLabel("announcments are located here"))
+        self.announcmentes_layout.addStretch(5)
+        self.announcmentes = QWidget()
+        self.announcmentes.setLayout(self.announcmentes_layout)
+        return self.announcmentes
 
     def _sign_up(self):
         if self.username.text().strip() == "":

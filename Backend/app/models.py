@@ -1,6 +1,6 @@
 import json
 from app import app, db
-from datetime import date
+from datetime import date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
@@ -30,7 +30,7 @@ class User(db.Model):
 
     @staticmethod
     def verify_auth_token(token):
-        s = Serializer(app.config['SECRET_KEY'])
+        s = Serializer(app.config["SECRET_KEY"])
         try:
             data = s.loads(token)
         except SignatureExpired:
@@ -71,7 +71,7 @@ class User(db.Model):
     def get_leaderboard(limit=100):
         return [user.jsonify(points=True)
                 for user in User.query.order_by(User.points.desc()
-                                                ).limit(limit)]
+                                                ).limit(limit).all()]
 
     # User authentication information
     username = db.Column(db.String(app.config["USER_USERNAME_MAX_LEN"]),
@@ -87,6 +87,8 @@ class User(db.Model):
     description = db.Column(db.String(300))
     custom_avatar_url = db.Column(db.String(200))
 
+    tournaments = db.relationship("tournaments", backref="maintainer",
+                                  lazy="dynamic")
     groups = db.relationship("Groups", secondary="user_groups",
                              backref=db.backref("user", lazy="dynamic"))
     roles = db.relationship("Role", secondary="user_roles",
@@ -160,29 +162,41 @@ class tournaments(db.Model):
                                        backref=db.backref("played_games",
                                                           lazy="dynamic"))
 
-    def get_players(self, only_id=True, jsonify=False):
-        if jsonify:
-            res = []
-            [res.append(player.jsonify()) for player in
-             [players for players in
-              [game.get_players(with_res=False) for game in self.games]]
-             if player.id not in res]
-        elif only_id:
-            res = []
-            [res.append(player.id) for player in
-             [players for players in
-              [game.get_players(with_res=False) for game in self.games]]
-             if player.id not in res]
+    def active(self):
+        if date.today() <= self.date or \
+           self.date+timedelta(days=self.duration) >= date.today():
+            return True
         else:
-            res = []
-            [res.append(player) for player in
-             [players for players in
-              [game.get_players(with_res=False) for game in self.games]]
-             if player not in res]
-        return res
+            return False
+
+    @property
+    def participants(self):
+        players = []
+        [players.append(player) for player in
+         [_players for _players in
+         [game.players for game in self.games]]
+         if player not in players]
+        return players
+
+    @staticmethod
+    def get_active(limit=10):
+        return [record for record in tournaments.query.all()
+                if record.active() is True][:limit+1]
+
+    def jsonify(self, game_ids=False):
+        entry = dict(name=self.name, date=self.date.strftime("%m.%d.%Y"),
+                     duration=self.duration, maintainer_id=self.maintainer_id,
+                     maintainer_username=self.maintainer.username,
+                     participants=len(self.participants))
+        if game_ids:
+            entry["game_ids"] = [game.id for game in games]
+        return json.dumps(entry)
+
+    games = db.relationship("games", secondary="tournament_games",
+                            backref=db.backref("tournaments", lazy="dynamic"))
 
     def __repr__(self):
-        return f"<tournament {self.id} at {date.strptime('%d.%m.%Y')}>"
+        return f"<tournament {self.id} at {self.date.strftime('%d.%m.%Y')}>"
 
 
 class matchgames(db.Model):
@@ -218,6 +232,10 @@ class games(db.Model):
          for game in slaves]
         db.session.commit()
         return master
+
+    @property
+    def player_ids(self):
+        return [player.id for player in self.players]
 
     def get_points(self, user, only_id=True):
         if only_id:
