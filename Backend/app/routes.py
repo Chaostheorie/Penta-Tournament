@@ -3,7 +3,7 @@ from flask import render_template, g, request, abort, jsonify, make_response
 from datetime import date, datetime
 from sqlalchemy.exc import OperationalError
 from app.models import User, tournaments
-from app.utils import requeries_json_keys
+from app.utils import requeries_json_keys, role_required
 from app import app, auth, db
 
 
@@ -65,7 +65,6 @@ def new_user():
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
-@auth.login_required
 @requeries_json_keys(["name", "day"])
 def create_tournament():
     r = request.get_json()
@@ -84,6 +83,14 @@ def create_tournament():
         pass
 
     # return jsonify()
+
+
+@app.route("/api/tournaments/ongoing", methods=["POST"])
+@requeries_json_keys(["limit"])
+def list_tournaments():
+    r = request.get_json()
+    return jsonify([record.jsonify()
+                    for record in tournaments.get_active(r["limit"])])
 
 
 @auth.error_handler

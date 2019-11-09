@@ -1,6 +1,7 @@
 from app import db, cron
+from app.models import Role
 from datetime import date, timedelta
-from flask import request, abort
+from flask import request, abort, g
 from simplejson.errors import JSONDecodeError
 import functools
 import json
@@ -17,6 +18,18 @@ def requeries_json_keys(keys):
             if len([rkey for rkey in keys
                     if rkey not in data]) >= 1:
                 return abort(400)
+            return func(*args, **kwargs)
+        return wrapper
+    return actual_decorator
+
+
+def role_required(names):
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            roles = [Role.query.filter_by(name=name).first() for name in names]
+            if len([role for role in roles if role not in g.user.roles]) >= 1:
+                return abort(403)
             return func(*args, **kwargs)
         return wrapper
     return actual_decorator
