@@ -2,7 +2,7 @@ import json
 from flask import render_template, g, request, abort, jsonify, make_response
 from datetime import date, datetime
 from sqlalchemy.exc import OperationalError
-from app.models import User, tournaments
+from app.models import User, Tournaments
 from app.utils import requeries_json_keys, role_required
 from app import app, auth, db
 
@@ -17,6 +17,7 @@ def index():
 def get_auth_token():
     refresh_token, token = g.user.generate_auth_token()
     return jsonify({"token": token.decode("ascii"),
+                    "id": g.user.id,
                     "refresh_token": refresh_token.decode("ascii")})
 
 
@@ -33,18 +34,10 @@ def verify_password(username_or_token, password):
     return True
 
 
-@app.route("/api/user/leaderboard", methods=["POST"])
+@app.route("/api/user/leaderboard", methods=["GET"])
 def get_leaderboard():
-    try:
-        r = json.loads(request.get_json())
-    except TypeError:
-        r = None
-    if r is not None and "limit" in r.keys():
-        try:
-            return jsonify(User.get_leaderboard(limit=int(r["limit"])))
-        except ValueError:
-            return abort(400)
-    return jsonify(User.get_leaderboard())
+    limit = request.args.get("limit", default=100, type=int)
+    return jsonify(User.get_leaderboard(limit=limit))
 
 
 @app.route("/api/user/sign-up", methods=["POST"])
@@ -65,11 +58,12 @@ def new_user():
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
-@requeries_json_keys(["name", "day"])
+@requeries_json_keys(["name", "day", "duration"])
 def create_tournament():
     r = request.get_json()
     try:
-        t = tournaments(name=r["name"], maintainer_id=g.user.id,
+        t = Tournaments(name=r["name"], maintainer_id=g.user.id,
+                        duration=r["duration"],
                         day=datetime.strptime(r["day"], "%d.%m.%Y").date())
         db.session.add(t)
         db.session.commit()
@@ -80,17 +74,99 @@ def create_tournament():
         db.session.rollback()
         return abort(400)
     finally:
-        pass
+        db.session.flush()
+    return jsonify(t.jsonify())
 
-    # return jsonify()
 
-
-@app.route("/api/tournaments/ongoing", methods=["POST"])
-@requeries_json_keys(["limit"])
-def list_tournaments():
-    r = request.get_json()
+@app.route("/api/tournaments/ongoing", methods=["GET"])
+def list_ongoing_tournaments():
+    limit = request.args.get("limit", default=10, type=int)
+    maintainer_id = request.args.get("maintainer_id", default=None, type=int)
+    if maintainer_id is not None:
+        return jsonify([record.jsonify()
+                        for record in Tournaments.get_active(limit, maintainer_id=maintainer_id)])
     return jsonify([record.jsonify()
-                    for record in tournaments.get_active(r["limit"])])
+                    for record in Tournaments.get_active(limit)])
+
+
+@app.route("/api/tournaments/list", methods=["GET"])
+def list_tournaments():
+    limit = request.args.get("limit", default=10, type=int)
+    maintainer_id = request.args.get("maintainer_id", default=None, type=int)
+    if maintainer_id is not None:
+        t = Tournaments.query.filter_by(maintainer_id=maintainer_id
+                                        ).limit(limit).all()
+        return jsonify([record.jsonify() for record in t])
+    return jsonify([record.jsonify()
+                    for record in Tournaments.query.limit(limit).all()])
+
+
+@app.route("/api/tournament/<int:id>/games", methods=["GET"])
+def get_tournament_games(id):
+    limit = request.args.get("limit", default=None, type=int)
+    active = request.args.get("ongoing", default=True)
+    print(active)
+    load_players = request.args.get("load_players", default=False)
+    print(load_players)
+    query = Tournaments.query.get_or_404(id).games
+    if limit is not None:
+        query.limit(limit)
+    games = query.all()
+    return jsonify([game.jsonify() for game in games])
+
+
+@app.route("/api/tournaments/<int:id>/info", methods=["GET"])
+def get_tournament_info(id):
+    t = Tournaments.get_or_404(id)
+    return jsonify(t.jsonify())
+
+
+@app.route("/api/tournament/<int:id>/edit", methods=["POST"])
+@requeries_json_keys(["duration", "date", "name", "maintainer_id"])
+def edit_tournament(id):
+    t = Tournaments.get_or_404(id)
+    if g.user == t.maintainer:
+        r = request.get_json()
+        t.name = r["name"]
+        t.maintainer_id = r["maintainer_id"]
+        t.duration = r["duration"]
+        try:
+            t.date = datetime.strptime(r["day"], "%d.%m.%Y").date()
+        except ValueError:
+            db.session.rollback()
+            return abort(400)
+        except OperationalError:
+            db.session.rollback()
+            return abort(500)
+        finally:
+            db.session.commit()
+            db.session.flush()
+        return jsonify(t.jsonify())
+    else:
+        return abort(403)
+
+
+@app.route("/api/tournament/<int:id>/delete", methods=["DELETE"])
+def delete_tournament(id):
+    t = Tournaments.get_or_404(id)
+    if t.maintainer == g.user:
+        try:
+            db.session.remove(t)
+        except OperationalError:
+            db.session.rollback()
+            return abort(500)
+        finally:
+            db.session.commit(t)
+    else:
+        return abort(403)
+    return jsonify({"result": "success"}), 200
+
+
+@app.route("/api/tournament/<int:id>/games", methods=["GET"])
+def get_games(id):
+    t = Tournaments.get_or_404(id)
+    limit = request.args.get("limit", default=10, type=int)
+
 
 
 @auth.error_handler
@@ -100,10 +176,10 @@ def unauthorized():
 
 @app.before_request
 def before_request_hook():
-    """Hook for signal if maintenance's ongoing or load is to high"""
+    """Hook for signal if maintenance's ongoing"""
     if app.maintenance:
         e = "The server is currently unable to handle the request due to a \
              temporary overloading or maintenance of the server."
         return make_response(jsonify({"error": e}), 503)
     else:
-        pass
+        return

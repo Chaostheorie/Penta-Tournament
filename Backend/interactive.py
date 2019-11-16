@@ -1,8 +1,8 @@
 # File for tests run with hydrogen
 
-from app.models import tournaments
+from app.models import tournaments, User
+from datetime import date
 
-t = tournaments.query.first()
-t.jsonify()
 
-t.get_players()
+u = User.query.first()
+tournaments.create_tournament("Test", u, date.today())

@@ -17,7 +17,8 @@ class CredentialsExption(Exception):
 
 
 class AuthorizationException(Exception):
-    """Exception raised by unauthorized access 'Some permissions missing?"""
+    """Exception raised by unauthorized access 'Some permissions missing?'"""
+    pass
 
 
 class APIException(Exception):
@@ -25,8 +26,13 @@ class APIException(Exception):
     pass
 
 
-class APIException(Exception):
+class ClientException(Exception):
     """Exceptions for APIBIND Errors 'You fucked up'"""
+
+
+class QGameItem(QStandardItem):
+    def clicked(self):
+        return
 
 
 class APIBIND:
@@ -45,6 +51,7 @@ class APIBIND:
         try:
             r = r.json()
             self.token = r["token"]
+            self.id = r["id"]
             self.refresh_token = r["refresh_token"]
         except JSONDecodeError:
             raise APIException("Server Response Invalid")
@@ -55,7 +62,8 @@ class APIBIND:
                          credentials=False, refresh=False, method="GET")
         if r.status_code == 400:
             pass
-        self.token = r.json()["token"]
+        r = r.json()
+        self.token = r["token"]
         self.refresh_token = r["refresh_token"]
 
     def sign_up(self, username, password):
@@ -68,19 +76,85 @@ class APIBIND:
         except JSONDecodeError:
             raise APIException("JSON List was invalid")
 
-    def get_leaderboard(self):
-        payload = {"down_to": 100}
-        r = self.request("user/leaderboard", payload, "POST")
+    def get_tournament_games(self, id, duo=False, stringify=False,
+                             ongoing=False, limit=None, load_players=False):
+        """Get games related to tournaments
+           Note: duo allows double output with stringify"""
+        payload = dict(limit=limit, ongoing=ongoing, load_players=load_players)
+        r = self.request(f"tournament/{id}/games", payload, "GET")
+        if stringify:
+            games = r.json()
+            results = []
+            for data in games:
+                res = data["date"]
+                res += " "*5
+                if ongoing:
+                    res += "Running"
+                    res += " "*5
+                res += str(len(data["result"]))
+                print(data["result"])
+                if len(data["result"]) != 5:
+                    res += " "*(6-len(data["result"]))
+                else:
+                    ree += " "*1
+                if len(data["result"]) == 1:
+                    res += "player"
+                else:
+                    res += "players"
+                results.append(res)
+                return results
+        else:
+            return self.parse_list(r)
+
+    def get_user_games(self, limit=10, stringify=False):
+        """Get games """
+        return
+
+    def get_leaderboard(self, down_to=100):
+        payload = {"down_to": down_to}
+        r = self.request("user/leaderboard", payload, "GET")
         return self.parse_list(r)
 
-    def get_tournaments(self):
-        payload = {"limit": 10}
-        r = self.request("tournaments/ongoing", payload, "POST")
-        return self.parse_list(r)
+    def get_tournaments(self, personal=True, active=True, stringify=False, duo=False):
+        if active:
+            payload = {"limit": 10}
+            if personal:
+                payload["maintainer_id"] = self.id
+            r = self.request("tournaments/ongoing", payload, "GET")
+        else:
+            payload = {"limit": 10}
+            if personal:
+                payload["maintainer_id"] = self.id
+            r = self.request("tournaments/list", payload, "GET")
+        if stringify:
+            tournaments = self.parse_list(r)
+            results = []
+            for data in tournaments:
+                if len(data["name"]) < 50:
+                    res = data["name"] + " "*(51-len(str(data["name"])))
+                else:
+                    res = data["name"] + " "
+                if data["active"] is True:
+                    res += "active   "
+                else:
+                    res += "inactive "
+                if data["participants"] < 5:
+                    res += str(data["participants"])
+                    res += " "*(5-len(str(data["participants"])))
+                else:
+                    res += str(data["participants"])
+                res += " participants"
+                results.append(res)
+            if duo:
+                return results, tournaments
+            else:
+                return results
+        else:
+            return self.parse_list(r)
 
     def request(self, endpoint, payload, method="POST",
                 credentials=True, refresh=True):
-        if credentials:
+        if credentials and method != "GET":
             payload["username"] = self.token
             payload["password"] = None
         payload = json.dumps(payload)
@@ -91,7 +165,8 @@ class APIBIND:
             r = self.session.put(f"http://localhost:5000/api/{endpoint}",
                                  payload)
         elif method == "GET":
-            r = self.session.get(f"http://localhost:5000/api/{endpoint}")
+            r = self.session.get(f"http://localhost:5000/api/{endpoint}",
+                                 params=payload)
         elif method == "DELETE":
             r = self.session.delete(f"http://localhost:5000/api/{endpoint}",
                                     payload)
@@ -112,6 +187,12 @@ class APIBIND:
             else:
                 return r
         return r
+
+
+class QStandardTournamentItem(QStandardItem):
+    def __init__(self, id, *args, **kwargs):
+        self.id = id
+        super().__init__(*args, **kwargs)
 
 
 class PentaTournament(ApplicationContext):
@@ -198,6 +279,10 @@ class PentaTournament(ApplicationContext):
         self.tournament_btn.setStyleSheet(StyleSheet)
         self.tournament_btn.setMinimumSize(QSize(48, 64))
         self.tournament_btn.setMaximumWidth(48)
+        self.tournament_manage_btn = QPushButton()
+        self.tournament_manage_btn.setIcon(QIcon(self.get_resource("manager.svg")))
+        self.tournament_manage_btn.setStyleSheet(StyleSheet)
+        self.tournament_manage_btn.setMinimumSize(QSize(48, 64))
         self.leaderboard_btn = QPushButton()
         self.leaderboard_btn.setIcon(QIcon(self.get_resource("podium.svg")))
         self.leaderboard_btn.setStyleSheet(StyleSheet)
@@ -213,18 +298,21 @@ class PentaTournament(ApplicationContext):
         self.tournament_btn.clicked.connect(self.button2)
         self.leaderboard_btn.clicked.connect(self.button3)
         self.announcmentes_btn.clicked.connect(self.button4)
+        self.tournament_manage_btn.clicked.connect(self.button5)
 
         # add tabs
         self.tab1 = self.home()
         self.tab2 = self.tournaments()
         self.tab3 = self.leaderboards()
         self.tab4 = self.announcmentes()
+        self.tab5 = self.tournament_manage()
         left_layout = QVBoxLayout()
         left_layout.setAlignment(Qt.AlignTop)
         left_layout.addWidget(self.home_btn)
         left_layout.addWidget(self.tournament_btn)
         left_layout.addWidget(self.leaderboard_btn)
         left_layout.addWidget(self.announcmentes_btn)
+        left_layout.addWidget(self.tournament_manage_btn)
         left_layout.addStretch(5)
         left_layout.setSpacing(0)
         left_layout.setContentsMargins(QMargins(0, 0, 0, 0))
@@ -235,10 +323,11 @@ class PentaTournament(ApplicationContext):
         self.right_widget = QTabWidget()
         self.right_widget.tabBar().setObjectName("mainTab")
 
-        self.right_widget.addTab(self.tab1, '')
-        self.right_widget.addTab(self.tab2, '')
-        self.right_widget.addTab(self.tab3, '')
-        self.right_widget.addTab(self.tab4, '')
+        self.right_widget.addTab(self.tab1, "")
+        self.right_widget.addTab(self.tab2, "")
+        self.right_widget.addTab(self.tab3, "")
+        self.right_widget.addTab(self.tab4, "")
+        self.right_widget.addTab(self.tab5, "")
 
         self.right_widget.setCurrentIndex(0)
         self.right_widget.setStyleSheet('''QTabBar::tab{width: 0; \
@@ -271,6 +360,9 @@ class PentaTournament(ApplicationContext):
     def button4(self):
         self.right_widget.setCurrentIndex(3)
 
+    def button5(self):
+        self.right_widget.setCurrentIndex(4)
+
     def clear_layout(self, layout):
         for i in reversed(range(layout.count())):
             layout.itemAt(i).widget().setParent(None)
@@ -279,8 +371,52 @@ class PentaTournament(ApplicationContext):
     def update_home(self):
         return
 
+    def tournament_focused(self, index):
+        row = self.your_tournaments_model.itemFromIndex(index)
+        self.ongoing_games_model.clear()
+        for game in self.api.get_tournament_games(row.id, stringify=True):
+            print(game)
+            if game is not None:
+                item = QGameItem(game)
+                self.ongoing_games_model.appendRow(item)
+
+    def tournament_manage(self):
+        self.manage = QWidget()
+        self.your_tournaments_box = QGroupBox("Your Tournaments")
+        self.your_tournaments_layout = QVBoxLayout()
+        self.manage_layout = QGridLayout()
+        self.your_tournaments = QListView()
+        self.your_tournaments.clicked.connect(self.tournament_focused)
+        self.your_tournaments_model = QStandardItemModel()
+        items, tournaments = self.api.get_tournaments(personal=True, active=False,
+                                                      stringify=True, duo=True)
+        for i in range(len(items)):
+            item = QStandardTournamentItem(tournaments[i]["id"], items[i])  # random errors by active tournament
+            self.your_tournaments_model.appendRow(item)
+        self.your_tournaments.setModel(self.your_tournaments_model)
+        self.your_tournaments.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.your_tournaments_layout.addWidget(self.your_tournaments)
+        self.your_tournaments_box.setLayout(self.your_tournaments_layout)
+        self.manage_layout.addWidget(self.your_tournaments_box, 1, 0)
+        self.ongoing_games_box = QGroupBox("Ongoing Games")
+        self.ongoing_games_layout = QVBoxLayout()
+        self.ongoing_games = QListView()
+        self.ongoing_games_model = QStandardItemModel()
+        games = [self.api.get_tournament_games(tournament["id"], ongoing=True, stringify=True)
+                 for tournament in tournaments]
+        for game in games:
+            if game is not None:
+                item = QGameItem(game[0])
+                self.ongoing_games_model.appendRow(item)
+        self.ongoing_games.setModel(self.ongoing_games_model)
+        self.ongoing_games.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.ongoing_games_layout.addWidget(self.ongoing_games)
+        self.ongoing_games_box.setLayout(self.ongoing_games_layout)
+        self.manage_layout.addWidget(self.ongoing_games_box, 1, 1)
+        self.manage.setLayout(self.manage_layout)
+        return self.manage
+
     def update_tournaments(self):
-        print(1)
         self.clear_layout(self.to_layout)
         for tournament in self.api.get_tournaments():
             to_layout = QHBoxLayout()
@@ -307,6 +443,7 @@ class PentaTournament(ApplicationContext):
 
     def tournaments(self):
         self.to_layout = QVBoxLayout()
+        self.to_layout.setSpacing(0)
         for tournament in self.api.get_tournaments():
             to_layout = QHBoxLayout()
             to_layout.addWidget(QLabel(tournament["name"]))

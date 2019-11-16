@@ -1,4 +1,6 @@
 import json
+import logging
+import warnings
 from app import app, db
 from datetime import date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -41,10 +43,10 @@ class User(db.Model):
         return user
 
     def jsonify(self, full=False, points=False):
-        """Retruns json object with user data"""
+        """Returns json object with user data"""
         if full:
             user = dict(
-                        id=self.id, username=self.username, active=self.active,
+                        id=self.id, username=self.username,
                         e_mail=self.e_mail, description=self.description,
                         groups=[group.name for group in self.groups],
                         roles=[role.name for role in self.roles]
@@ -58,7 +60,7 @@ class User(db.Model):
     def calculate_points(self):
         """The calculation of points will cause a relatively high load"""
         results = {1: 0, 2: 0, 3: 0, 4: 0}
-        for game in self.games:
+        for game in self.games.all():
             results[game.get_points(self.id)] += 1
         self.points = results[4] * 2
         self.points -= results[1] - results[2]*0.5 - results[3]*0.5
@@ -87,14 +89,12 @@ class User(db.Model):
     description = db.Column(db.String(300))
     custom_avatar_url = db.Column(db.String(200))
 
-    tournaments = db.relationship("tournaments", backref="maintainer",
+    Tournaments = db.relationship("Tournaments", backref="maintainer",
                                   lazy="dynamic")
     groups = db.relationship("Groups", secondary="user_groups",
                              backref=db.backref("user", lazy="dynamic"))
     roles = db.relationship("Role", secondary="user_roles",
                             backref=db.backref("user", lazy="dynamic"))
-    games = db.relationship("games", secondary="user_games",
-                            backref=db.backref("User", lazy="dynamic"))
 
     def __repr__(self):
         return "<User {}>".format(self.username)
@@ -150,15 +150,15 @@ class UserGroups(db.Model):
         return "<UserGroup u:{}/r:{}>".format(self.user_id, self.group_id)
 
 
-class tournaments(db.Model):
+class Tournaments(db.Model):
     __tablename__ = "tournaments"
 
     id = db.Column(db.Integer(), primary_key=True)
-    name = db.Column(db.String())
+    name = db.Column(db.String(50))
     date = db.Column(db.Date())
     duration = db.Column(db.Integer(), server_default="1", nullable=False)
     maintainer_id = db.Column(db.Integer(), db.ForeignKey("user.id"))
-    tournament_games = db.relationship("games", secondary="tournament_games",
+    tournament_games = db.relationship("Games", secondary="tournament_games",
                                        backref=db.backref("played_games",
                                                           lazy="dynamic"))
 
@@ -169,31 +169,62 @@ class tournaments(db.Model):
         else:
             return False
 
-    @property
-    def participants(self):
-        players = []
-        [players.append(player) for player in
-         [_players for _players in
-         [game.players for game in self.games]]
-         if player not in players]
-        return players
+    def find_pair(self, player, init_match=False):
+        """Select two players for a game/ match"""
+        not_matched = [enemy for enemy in
+                       [part for part in self.participants]
+                       if player not in participant.get_games(self).players]
+        try:
+            not_matched.remove(player)
+        except ValueError:
+            warning.warn("Player is not participating in this tournament")
+        if len(not_matched) == 1:
+            return not_matched[0]
+        elif len(not_matched) > 1:
+            return not_matched.sort("points")
+        else:
+            pass
+
+    def add_player(self, player):
+        if TournamentPlayers.query.filter_by(user_id=player.id,
+                                             tournament_id=self.id
+                                             ).first() is None:
+            db.session.add(TournamentPlayers(user_id=player.id,
+                                             tournament_id=self.id))
+            db.session.commit()
+        else:
+            warning.warn("TournamentPlayers Entry was already existing")
 
     @staticmethod
-    def get_active(limit=10):
-        return [record for record in tournaments.query.all()
+    def create_tournament(name, maintainer, date, duration=1, players=None):
+        new_tournament = Tournaments(name=name, maintainer_id=maintainer.id,
+                                     date=date, duration=duration)
+        db.session.add(new_tournament)
+        if players is not None:
+            db.session.flush()
+            [new_tournament.add_player(player) for player in players]
+        db.session.commit()
+
+    @staticmethod
+    def get_active(limit=10, tournaments=None):
+        if tournaments is not None:
+            return [record for record in tournaments
+                    if record.active() is True][:limit+1]
+        return [record for record in Tournaments.query.all()
                 if record.active() is True][:limit+1]
 
     def jsonify(self, game_ids=False):
         entry = dict(name=self.name, date=self.date.strftime("%m.%d.%Y"),
                      duration=self.duration, maintainer_id=self.maintainer_id,
-                     maintainer_username=self.maintainer.username,
-                     participants=len(self.participants))
+                     maintainer_username=self.maintainer.username, id=self.id,
+                     participants=len(self.participants), active=self.active())
         if game_ids:
             entry["game_ids"] = [game.id for game in games]
         return json.dumps(entry)
 
-    games = db.relationship("games", secondary="tournament_games",
-                            backref=db.backref("tournaments", lazy="dynamic"))
+    participants = db.relationship("User", secondary="tournament_players",
+                                   backref=db.backref("participating_in",
+                                                      lazy="dynamic"))
 
     def __repr__(self):
         return f"<tournament {self.id} at {self.date.strftime('%d.%m.%Y')}>"
@@ -209,7 +240,7 @@ class matchgames(db.Model):
                          db.ForeignKey("games.id", ondelete="CASCADE"))
 
 
-class games(db.Model):
+class Games(db.Model):
     """Table for managing of games"""
     __tablename__ = "games"
 
@@ -221,8 +252,8 @@ class games(db.Model):
     @staticmethod
     def create_match(rounds=3):
         """For creating round based matches returns a match object"""
-        master = games(date=date.today(), result=None, type=True)
-        slaves = [games(date=date.today(), result=[], type=False)
+        master = Games(date=date.today(), result=None, type=True)
+        slaves = [Games(date=date.today(), result=[], type=False)
                   for _ in range(3)]
         db.session.add(master)
         [db.session.add(game) for game in slaves]
@@ -246,22 +277,35 @@ class games(db.Model):
                       if result["user_id"] == user.id]
         return points[0]
 
-    mastered_rel = db.relationship("games", secondary="match_games",
+    def jsonify(self, load_players=False):
+        res = dict(id=self.id, result=self.result,
+                   type=self.type, date=self.date)
+        if load_players:
+            players = [User.get(data["user_id"]).jsonify()
+                       for data in self.result]
+            for i in range(len(res["result"])):
+                res[i]["result"] = dict(points=res["result"][i]["points"],
+                                        user=players[i])
+        return res
+
+    mastered_rel = db.relationship("Games", secondary="match_games",
                                    backref=db.backref("mastered_by"),
                                    primaryjoin=(matchgames.master_id == id),
                                    secondaryjoin=(matchgames.slave_id == id))
-    master_rel = db.relationship("games", secondary="match_games",
+    master_rel = db.relationship("Games", secondary="match_games",
                                  backref=db.backref("master_of"),
                                  primaryjoin=(matchgames.slave_id == id),
                                  secondaryjoin=(matchgames.master_id == id))
+    tournaments = db.relationship("Tournaments", secondary="tournament_games",
+                                  backref=db.backref("games", lazy="dynamic"))
     players = db.relationship("User", secondary="user_games",
-                              backref=db.backref("players", lazy="dynamic"))
+                              backref=db.backref("games", lazy="dynamic"))
 
     def __repr__(self):
         return f"<game {self.id} from {self.date.strftime('%d.%m.%Y')}>"
 
 
-class tournamentgames(db.Model):
+class TournamentGames(db.Model):
     __tablename__ = "tournament_games"
 
     id = db.Column(db.Integer(), primary_key=True)
@@ -271,7 +315,7 @@ class tournamentgames(db.Model):
                                                           ondelete="CASCADE"))
 
 
-class Usergames(db.Model):
+class UserGames(db.Model):
     __tablename__ = "user_games"
 
     id = db.Column(db.Integer(), primary_key=True)
@@ -279,3 +323,13 @@ class Usergames(db.Model):
                         db.ForeignKey("games.id", ondelete="CASCADE"))
     user_id = db.Column(db.Integer(),
                         db.ForeignKey("user.id", ondelete="CASCADE"))
+
+
+class TournamentPlayers(db.Model):
+    __tablename__ = "tournament_players"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    user_id = db.Column(db.Integer(),
+                        db.ForeignKey("user.id", ondelete="CASCADE"))
+    tournament_id = db.Column(db.Integer(), db.ForeignKey("tournaments.id",
+                                                          ondelete="CASCADE"))
