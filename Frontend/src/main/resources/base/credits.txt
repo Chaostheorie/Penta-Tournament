@@ -1,2 +1,25 @@
-Flaticon.ico for:
+I DO NOT OWN ANYTHING OF THE IMAGES USED
+
+FOR LEGAL ISSUES SEE LGPL License (PyQt5).
+
+THIS APPLICATION IS FREE TO USE FOR EVERYONE
+
+NO MILITARY USAGE ALLOWED
+
+CIA, FBI, BND, KGB, ... F*CK OFF
+
+WE DON'T PROVIDE ANY KIND OF WARRANTY FOR THIS PRODUCT
+
+Flaticon.ico is the legal owner of:
   - inapp.svg
+  - manager.svg
+  - podium.svg
+  - announcments.svg
+  - tournaments.svg
+
+
+EVERYTHING OF "OUR" CODE IS TO BE LEGALLY HANDLED UNDER LGPL
+
+OUR: Written by us. Free to use/ share/ modify. Simply credit us at some point
+
+have fun and enjoy your time :)

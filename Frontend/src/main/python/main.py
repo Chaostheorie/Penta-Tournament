@@ -8,6 +8,7 @@ from PyQt5.QtGui import *
 import requests  # API requests
 import sys
 import time
+import logging
 import json  # JSON handling
 
 
@@ -28,11 +29,6 @@ class APIException(Exception):
 
 class ClientException(Exception):
     """Exceptions for APIBIND Errors 'You fucked up'"""
-
-
-class QGameItem(QStandardItem):
-    def clicked(self):
-        return
 
 
 class APIBIND:
@@ -70,9 +66,11 @@ class APIBIND:
         payload = {"username": username, "password": password}
         return self.request("user/sign-up", payload, credentials=False)
 
-    def parse_list(self, request):
+    def parse_list(self, r):
         try:
-            return [json.loads(chunk) for chunk in request.json()]
+            return [json.loads(chunk) for chunk in r.json()]
+        except TypeError:
+            logging.warning("JSON was not processable")
         except JSONDecodeError:
             raise APIException("JSON List was invalid")
 
@@ -83,28 +81,29 @@ class APIBIND:
         payload = dict(limit=limit, ongoing=ongoing, load_players=load_players)
         r = self.request(f"tournament/{id}/games", payload, "GET")
         if stringify:
-            games = r.json()
-            results = []
-            for data in games:
-                res = data["date"]
-                res += " "*5
-                if ongoing:
-                    res += "Running"
-                    res += " "*5
-                res += str(len(data["result"]))
-                print(data["result"])
-                if len(data["result"]) != 5:
-                    res += " "*(6-len(data["result"]))
-                else:
-                    ree += " "*1
-                if len(data["result"]) == 1:
-                    res += "player"
-                else:
-                    res += "players"
-                results.append(res)
-                return results
+            return self.game_stringify(self.parse_list(r))
         else:
             return self.parse_list(r)
+
+    def game_stringify(self, games):
+        results = []
+        for data in games:
+            res = data["date"]
+            res += " "*5
+            if ongoing:
+                res += "Running"
+                res += " "*5
+            res += str(len(data["result"]))
+            if len(data["result"]) != 5:
+                res += " "*(6-len(data["result"]))
+            else:
+                ree += " "*1
+            if len(data["result"]) == 1:
+                res += "player"
+            else:
+                res += "players"
+            results.append(res)
+        return results
 
     def get_user_games(self, limit=10, stringify=False):
         """Get games """
@@ -115,7 +114,8 @@ class APIBIND:
         r = self.request("user/leaderboard", payload, "GET")
         return self.parse_list(r)
 
-    def get_tournaments(self, personal=True, active=True, stringify=False, duo=False):
+    def get_tournaments(self, personal=True, active=True,
+                        stringify=False, duo=False):
         if active:
             payload = {"limit": 10}
             if personal:
@@ -127,24 +127,8 @@ class APIBIND:
                 payload["maintainer_id"] = self.id
             r = self.request("tournaments/list", payload, "GET")
         if stringify:
-            tournaments = self.parse_list(r)
-            results = []
-            for data in tournaments:
-                if len(data["name"]) < 50:
-                    res = data["name"] + " "*(51-len(str(data["name"])))
-                else:
-                    res = data["name"] + " "
-                if data["active"] is True:
-                    res += "active   "
-                else:
-                    res += "inactive "
-                if data["participants"] < 5:
-                    res += str(data["participants"])
-                    res += " "*(5-len(str(data["participants"])))
-                else:
-                    res += str(data["participants"])
-                res += " participants"
-                results.append(res)
+            tournaments, results = self.tournament_stringify(self.parse_list(r),
+                                                             source=True)
             if duo:
                 return results, tournaments
             else:
@@ -152,9 +136,35 @@ class APIBIND:
         else:
             return self.parse_list(r)
 
-    def request(self, endpoint, payload, method="POST",
+    def tournament_stringify(self, tournaments, source=False):
+        results = []
+        for data in tournaments:
+            if len(data["name"]) < 50:
+                res = data["name"] + " "*(51-len(str(data["name"])))
+            else:
+                res = data["name"] + " "
+            if data["active"] is True:
+                res += "active   "
+            else:
+                res += "inactive "
+            if data["participants"] < 5:
+                res += str(data["participants"])
+                res += " "*(5-len(str(data["participants"])))
+            else:
+                res += str(data["participants"])
+            res += " participants"
+            results.append(res)
+        if source:
+            return tournaments, results
+        return results
+
+    def get_changelog(self):
+        changelog = self.request("gui/changelog", method="GET")
+        return changelog.text
+
+    def request(self, endpoint, payload=[], method="POST",
                 credentials=True, refresh=True):
-        if credentials and method != "GET":
+        if credentials and method != "GET" and payload != []:
             payload["username"] = self.token
             payload["password"] = None
         payload = json.dumps(payload)
@@ -192,6 +202,13 @@ class APIBIND:
 class QStandardTournamentItem(QStandardItem):
     def __init__(self, id, *args, **kwargs):
         self.id = id
+        super().__init__(*args, **kwargs)
+
+
+class QGameItem(QStandardItem):
+    def __init__(self, id, result, *args, **kwargs):
+        self.id = id
+        self.result = result
         super().__init__(*args, **kwargs)
 
 
@@ -274,7 +291,8 @@ class PentaTournament(ApplicationContext):
         self.tournament_btn.setIcon(QIcon(self.get_resource("tournaments.svg")
                                           ))
         StyleSheet = """QPushButton {border: solid;
-                                     background-color: lightgray; padding: 0px;
+                                     background-color: lightgray;
+                                     padding: 0px;
                                      }"""
         self.tournament_btn.setStyleSheet(StyleSheet)
         self.tournament_btn.setMinimumSize(QSize(48, 64))
@@ -374,11 +392,23 @@ class PentaTournament(ApplicationContext):
     def tournament_focused(self, index):
         row = self.your_tournaments_model.itemFromIndex(index)
         self.ongoing_games_model.clear()
-        for game in self.api.get_tournament_games(row.id, stringify=True):
-            print(game)
+        items, games = self.api.get_tournament_games(row.id, stringify=True,
+                                                     duo=True)
+        if games is None:
+            return
+        for game in games:
             if game is not None:
                 item = QGameItem(game)
                 self.ongoing_games_model.appendRow(item)
+
+    def game_focused(self, index):
+        row = self.your_tournaments_model.itemFromIndex(index)
+        game = self.api.get_game(row.id)
+        game_widget = QWidget()
+        game_widget.setWindowTitle(f"Game {game['id']} from {game['date']}")
+        game_layout = QGridLayout()
+        metadata_box = QGroupBox("Metadata")
+        game_layout.addWidget()
 
     def tournament_manage(self):
         self.manage = QWidget()
@@ -402,11 +432,12 @@ class PentaTournament(ApplicationContext):
         self.ongoing_games_layout = QVBoxLayout()
         self.ongoing_games = QListView()
         self.ongoing_games_model = QStandardItemModel()
-        games = [self.api.get_tournament_games(tournament["id"], ongoing=True, stringify=True)
+        games = [self.api.get_tournament_games(tournament["id"], ongoing=True)
                  for tournament in tournaments]
         for game in games:
             if game is not None:
-                item = QGameItem(game[0])
+                item = QGameItem(game["id"], game["result"],
+                                 self.api.game_stringify(game))
                 self.ongoing_games_model.appendRow(item)
         self.ongoing_games.setModel(self.ongoing_games_model)
         self.ongoing_games.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -481,9 +512,9 @@ class PentaTournament(ApplicationContext):
         return self.leaderboard
 
     def announcmentes(self):
-        self.announcmentes_layout = QHBoxLayout()
-        self.announcmentes_layout.addWidget(QLabel("announcments are located here"))
-        self.announcmentes_layout.addStretch(5)
+        self.announcmentes_layout = QGridLayout()
+        changelog = QLabel(self.api.get_changelog())
+        self.announcmentes_layout.addWidget(changelog, 1, 1)
         self.announcmentes = QWidget()
         self.announcmentes.setLayout(self.announcmentes_layout)
         return self.announcmentes

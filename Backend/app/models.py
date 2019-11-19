@@ -247,6 +247,7 @@ class Games(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     result = db.Column(db.JSON())  # [{"user_id": int, "points": int}]
     date = db.Column(db.Date())
+    duration = db.Column(db.Integer())  # Measured in minutes
     type = db.Column(db.Boolean(), server_default="1")  # 1 = Master/ Single
 
     @staticmethod

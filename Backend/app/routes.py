@@ -105,12 +105,10 @@ def list_tournaments():
 def get_tournament_games(id):
     limit = request.args.get("limit", default=None, type=int)
     active = request.args.get("ongoing", default=True)
-    print(active)
     load_players = request.args.get("load_players", default=False)
-    print(load_players)
     query = Tournaments.query.get_or_404(id).games
     if limit is not None:
-        query.limit(limit)
+        query = query.limit(limit)
     games = query.all()
     return jsonify([game.jsonify() for game in games])
 
@@ -167,6 +165,15 @@ def get_games(id):
     t = Tournaments.get_or_404(id)
     limit = request.args.get("limit", default=10, type=int)
 
+
+@app.route("/api/gui/changelog")
+def get_changelog():
+    changelog = """
+    That's some awesome content
+        - Point 1
+        - Some new feature
+    """
+    return changelog, 200
 
 
 @auth.error_handler
