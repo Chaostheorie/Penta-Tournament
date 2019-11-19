@@ -3,5 +3,6 @@
   "author": "Chaostheorie",
   "enviroment": "Development",
   "source": "https://github.com/Chaostheorie",
-  "License": "LGPL"
+  "License": "LGPL",
+  "LicenseLink": "https://github.com/Chaostheorie/Penta-Tournament/blob/master/LICENSE"
 }

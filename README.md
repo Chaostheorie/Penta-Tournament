@@ -47,7 +47,7 @@ Now you can run a local development Flask server:
 cd Backend && python3 main.py
 ```
 
-Now open a new bash/ shell and go to the the `Penta-Tournament/Frontend` and execute:
+Now open a new bash/ shell and go to the the `Penta-Tournament/Frontend` Folder and execute:
 
 ```bash
 pip3 install -r Backend/requirements.txt
