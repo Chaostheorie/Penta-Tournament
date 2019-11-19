@@ -265,6 +265,11 @@ class Games(db.Model):
         db.session.commit()
         return master
 
+    def active(self):
+        """Method for checking game state"""
+        # To be implemented
+        return True
+
     @property
     def player_ids(self):
         return [player.id for player in self.players]
@@ -280,7 +285,7 @@ class Games(db.Model):
 
     def jsonify(self, load_players=False):
         res = dict(id=self.id, result=self.result,
-                   type=self.type, date=self.date)
+                   type=self.type, date=self.date, active=self.active())
         if load_players:
             players = [User.get(data["user_id"]).jsonify()
                        for data in self.result]

@@ -27,7 +27,7 @@ For everything else like License etc. See credits.txt in frontend/src/main/resou
 
 # Installation
 
-Penta Tournament consists of two different parts. At the moment the `Frontend` points all of the requests to `http://localhost/api` e.g. the `Backend` Flask server should be running on the same machine. This will be changed in the future
+Penta Tournament consists of two different parts. At the moment the `Frontend` points all of the requests to `http://localhost/api` e.g. the `Backend` Flask server should be running on the same machine. This will be changed in the future. Out of the box there is no Data included.
 
 First clone/ download the repository:
 
@@ -58,5 +58,7 @@ Now you need to start the application with:
 ```bash
 fbs run
 ```
+
+Now as a recommendation for some Sample Data you could run `user.py` in the Backend directory for adding a sample data to the application.
 
 IMPORTANT NOTICE: if the build is broken or throws errors please don't email me and instead create a issue. It could happen that the application throws debug at you.

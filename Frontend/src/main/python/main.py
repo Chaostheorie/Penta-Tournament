@@ -70,7 +70,8 @@ class APIBIND:
         try:
             return [json.loads(chunk) for chunk in r.json()]
         except TypeError:
-            logging.warning("JSON was not processable")
+            logging.warning("JSON was not processable, passing r.json()")
+            return r.json()
         except JSONDecodeError:
             raise APIException("JSON List was invalid")
 
@@ -81,16 +82,22 @@ class APIBIND:
         payload = dict(limit=limit, ongoing=ongoing, load_players=load_players)
         r = self.request(f"tournament/{id}/games", payload, "GET")
         if stringify:
+            if duo:
+                return self.game_stringify(self.parse_list(r)
+                                           ), self.parse_list(r)
             return self.game_stringify(self.parse_list(r))
         else:
             return self.parse_list(r)
 
-    def game_stringify(self, games):
+    def game_stringify(self, games, ongoing=False):
         results = []
         for data in games:
+            if isinstance(data, list):
+                logging.warning("Game stringify can't handle nested lists")
+                break
             res = data["date"]
             res += " "*5
-            if ongoing:
+            if data["active"]:
                 res += "Running"
                 res += " "*5
             res += str(len(data["result"]))
@@ -396,10 +403,10 @@ class PentaTournament(ApplicationContext):
                                                      duo=True)
         if games is None:
             return
-        for game in games:
-            if game is not None:
-                item = QGameItem(game)
-                self.ongoing_games_model.appendRow(item)
+        for i in range(len(games)):
+            item = QGameItem(games[i]["id"], games[i]["result"],
+                             items[i])
+            self.ongoing_games_model.appendRow(item)
 
     def game_focused(self, index):
         row = self.your_tournaments_model.itemFromIndex(index)
@@ -432,13 +439,6 @@ class PentaTournament(ApplicationContext):
         self.ongoing_games_layout = QVBoxLayout()
         self.ongoing_games = QListView()
         self.ongoing_games_model = QStandardItemModel()
-        games = [self.api.get_tournament_games(tournament["id"], ongoing=True)
-                 for tournament in tournaments]
-        for game in games:
-            if game is not None:
-                item = QGameItem(game["id"], game["result"],
-                                 self.api.game_stringify(game))
-                self.ongoing_games_model.appendRow(item)
         self.ongoing_games.setModel(self.ongoing_games_model)
         self.ongoing_games.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.ongoing_games_layout.addWidget(self.ongoing_games)
