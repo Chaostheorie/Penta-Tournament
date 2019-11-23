@@ -67,7 +67,7 @@ def new_user():
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
-@requeries_json_keys(["name", "day", "duration",
+@requeries_json_keys(["name", "date", "duration",
                       "description", "participants"])
 def create_tournament():
     r = request.get_json()
