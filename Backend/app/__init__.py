@@ -10,8 +10,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 if "-d" in sys.argv:
     app.config.from_object(devconfig)
-db = SQLAlchemy(app, session_options={"autoflush": True},
-                engine_options={"conn_max_age": 600, "ssl_require": True})
+db = SQLAlchemy(app, session_options={"autoflush": True})
 auth = HTTPBasicAuth()
 
 cron = BackgroundScheduler(daemon=True)
