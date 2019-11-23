@@ -43,10 +43,10 @@ def get_leaderboard():
 def list_players():
     limit = request.args.get("limit", default=100)
     if limit is None:
-        players = [user.jsonify for user in User.query.all()]
+        players = [user.jsonify() for user in User.query.all()]
     else:
-        players = [user.jsonify for user in User.query.limit(limit).all()]
-    return players
+        players = [user.jsonify() for user in User.query.limit(limit).all()]
+    return jsonify(players)
 
 
 @app.route("/api/user/sign-up", methods=["POST"])
