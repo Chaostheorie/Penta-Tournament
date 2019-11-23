@@ -87,8 +87,6 @@ def create_tournament():
     except ValueError:
         db.session.rollback()
         return abort(400)
-    finally:
-        db.session.flush()
     return jsonify(t.jsonify())
 
 
