@@ -90,7 +90,8 @@ class APIBIND:
         else:
             return self.parse_list(r)
 
-    def create_tournament(name, duration, date, description, participants):
+    def create_tournament(self, name, duration, date,
+                          description, participants):
         paylod = dict(name=name, duration=duration, description=description,
                       participants=participants)
         return self.request("/tournament/create", paylod, "PUT")
