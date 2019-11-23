@@ -32,8 +32,9 @@ class ClientException(Exception):
 
 
 class APIBIND:
-    def __init__(self, username=None, password=None):
+    def __init__(self, url, port, protocol, username=None, password=None):
         self.session = requests.session()
+        self.url = protocol + "://" + url + ":" + str(port) + "/api/"
         if username is not None and password is not None:
             self.connect(username, password)
             self.username = username
@@ -41,7 +42,7 @@ class APIBIND:
     def connect(self, username, password):
         auth = requests.auth.HTTPBasicAuth(username=username,
                                            password=password)
-        r = self.session.get("http://localhost:5000/api/user/token", auth=auth)
+        r = self.session.get(f"{self.url}user/token", auth=auth)
         if r.status_code != 200:
             raise CredentialsExption("Password or Username is Wrong")
         try:
@@ -175,18 +176,15 @@ class APIBIND:
             payload["username"] = self.token
             payload["password"] = None
         payload = json.dumps(payload)
+        url = self.url + endpoint
         if method == "POST":
-            r = self.session.post(f"http://localhost:5000/api/{endpoint}",
-                                  data=payload)
+            r = self.session.post(url, data=payload)
         elif method == "PUT":
-            r = self.session.put(f"http://localhost:5000/api/{endpoint}",
-                                 payload)
+            r = self.session.put(url, payload)
         elif method == "GET":
-            r = self.session.get(f"http://localhost:5000/api/{endpoint}",
-                                 params=payload)
+            r = self.session.get(url, params=payload)
         elif method == "DELETE":
-            r = self.session.delete(f"http://localhost:5000/api/{endpoint}",
-                                    payload)
+            r = self.session.delete(url, payload)
         else:
             raise APIException(f"Method '{method}' not allowed")
         if r.status_code != 200:
@@ -230,18 +228,18 @@ class Config:
                 self.raw["enviroment"]
             except KeyError:
                 raise ConfigError("Config file Broken - Repair recommended")
+        else:
+            self.use_experimental = False
+            self.enviroment = "default"
         if "-d" in sys.argv or "--debug" in sys.argv:
             logging.basicConfig(level=logging.DEBUG)
         elif "-i" in sys.argv or "--info" in sys.argv:
             logging.basicConfig(level=logging.INFO)
-        else:
-            self.use_experimental = False
-            self.enviroment = "default"
 
     def __getitem__(self, key):
         """Gets item by key from config_file and enviroment"""
         try:
-            return self.raw[self.enviroment][name]
+            return self.raw[self.enviroment + "-config"][key]
         except KeyError:
             raise ConfigError("Requested key was not in config")
 

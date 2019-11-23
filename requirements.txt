@@ -1,4 +1,4 @@
-APScheduler==3.6.3
+apscheduler==3.6.3
 Click==7.0
 Flask==1.1.1
 Flask-HTTPAuth==3.3.0
