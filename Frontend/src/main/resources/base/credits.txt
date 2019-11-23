@@ -1,14 +1,20 @@
-I DO NOT OWN ANYTHING OF THE IMAGES USED
+LGPL
+Copyright (C) 2019 Cobalt
+c0balt0re@protonmail.com
 
-FOR LEGAL ISSUES SEE LGPL License (PyQt5).
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 3 of the License, or (at your option) any later version.
 
-THIS APPLICATION IS FREE TO USE FOR EVERYONE
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
 
-NO MILITARY USAGE ALLOWED
-
-CIA, FBI, BND, KGB, ... F*CK OFF
-
-WE DON'T PROVIDE ANY KIND OF WARRANTY FOR THIS PRODUCT
+You should have received a copy of the GNU Lesser General Public License
+along with this program; if not, write to the Free Software Foundation,
+Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 Flaticon.ico is the legal owner of:
   - inapp.svg
@@ -16,10 +22,3 @@ Flaticon.ico is the legal owner of:
   - podium.svg
   - announcments.svg
   - tournaments.svg
-
-
-EVERYTHING OF "OUR" CODE IS TO BE LEGALLY HANDLED UNDER LGPL
-
-OUR: Written by us. Free to use/ share/ modify. Simply credit us at some point
-
-have fun and enjoy your time :)

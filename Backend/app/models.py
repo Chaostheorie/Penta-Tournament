@@ -249,6 +249,8 @@ class Games(db.Model):
     date = db.Column(db.Date())
     duration = db.Column(db.Integer())  # Measured in minutes
     type = db.Column(db.Boolean(), server_default="1")  # 1 = Master/ Single
+    state = db.Column(db.Integer(), server_default="1")
+    # States: 1=active/ runnning, 0=not runnning/ finished, 2=ready, 3=paused
 
     @staticmethod
     def create_match(rounds=3):
@@ -267,8 +269,14 @@ class Games(db.Model):
 
     def active(self):
         """Method for checking game state"""
-        # To be implemented
-        return True
+        if self.state == 1 or self.state == 2 or self.state == 3:
+            return True
+        else:
+            return False
+
+    def parse_state(self):
+        states = {1: "running", 2: "ready", 3: "paused", 0: "finished"}
+        return states[self.state]
 
     @property
     def player_ids(self):
@@ -284,8 +292,9 @@ class Games(db.Model):
         return points[0]
 
     def jsonify(self, load_players=False):
-        res = dict(id=self.id, result=self.result,
-                   type=self.type, date=self.date, active=self.active())
+        res = dict(id=self.id, result=self.result, players=len(self.result),
+                   type=self.type, date=self.date.strftime("%d.%m.%Y"),
+                   state=self.parse_state())
         if load_players:
             players = [User.get(data["user_id"]).jsonify()
                        for data in self.result]

@@ -206,26 +206,117 @@ class APIBIND:
         return r
 
 
-class QStandardTournamentItem(QStandardItem):
+class ConfigError(Exception):
+    pass
+
+
+class Config:
+    def __init__(self, config_file, use_args=True, auto_update=True,
+                 supported_enviroments=["default", "experimental", "custom"]):
+        """Config object for handling with config file"""
+        self.config_file = config_file
+        self.auto_update = auto_update
+        self.supported_enviroments = supported_enviroments
+        with open(config_file) as f:
+            self.raw = json.load(f)
+        if use_args and ("-e" in sys.argv or "--experimental" in sys.argv):
+            self.use_experimental = True
+            self.enviroment = "experimental"
+        elif use_args and ("-c" in sys.argv or "--custom" in sys.argv):
+            self.use_experimental = True
+            self.enviroment = "custom"
+        elif use_args is False:
+            try:
+                self.raw["enviroment"]
+            except KeyError:
+                raise ConfigError("Config file Broken - Repair recommended")
+        if "-d" in sys.argv or "--debug" in sys.argv:
+            logging.basicConfig(level=logging.DEBUG)
+        elif "-i" in sys.argv or "--info" in sys.argv:
+            logging.basicConfig(level=logging.INFO)
+        else:
+            self.use_experimental = False
+            self.enviroment = "default"
+
+    def __getitem__(self, key):
+        """Gets item by key from config_file and enviroment"""
+        try:
+            return self.raw[self.enviroment][name]
+        except KeyError:
+            raise ConfigError("Requested key was not in config")
+
+    def __setitem__(self, key, val):
+        """Sets a config setting and updates config if auto_update enabled"""
+        self.raw[self.enviroment][key] = val
+        if self.auto_update:
+            try:
+                with open(self.config_file, "w") as f:
+                    json.dump(self.raw)
+            except PermissionError:
+                raise ConfigError("Config File is missing write permissions")
+        logging.debug(f"Key '{key}' assigned '{value}'")
+
+    def load_config(self):
+        """Loads config from config_file arg (self.config_file)"""
+        try:
+            with open(self.config_file) as f:
+                self.raw = json.load(f)
+        except PermissionError:
+            raise ConfigError("Config File is missing read permissions")
+        logging.info("Config loaded")
+
+    def __contains__(self, value):
+        """Checks if key is in current config enviroment"""
+        if value in self.raw[self.enviroment]:
+            return True
+        else:
+            return False
+
+    def set_enviroments(self, enviroment):
+        if enviroment in self.supported_enviroments:
+            self.enviroment = enviroment
+            logging.debug(f"Enviroment changed to '{enviroment}'")
+        else:
+            raise ConfigError("Enviroment not supported or properly passed")
+
+    def reset_config(self):
+        template_path = self.config_file[:self.config_file.rfind("/")]
+        template_path += "/templates/preferences.json"
+        logging.info(f"Config is reseted with file from {template_path}")
+        with open(templates_path) as f:
+            template = json.load(f)
+        with open(self.config_file, "w") as f:
+            json.dump(f)
+        logging.debug(f"template: \n {template}")
+
+
+class QTournamentItem(QTableWidgetItem):
     def __init__(self, id, *args, **kwargs):
         self.id = id
         super().__init__(*args, **kwargs)
+        logging.debug(f"QTournamentItem <{id}> created")
 
 
-class QGameItem(QStandardItem):
+class QGameItem(QTableWidgetItem):
     def __init__(self, id, result, *args, **kwargs):
         self.id = id
         self.result = result
         super().__init__(*args, **kwargs)
+        logging.debug(f"QGameItem <{id}> created")
 
 
 class PentaTournament(ApplicationContext):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        with open(self.get_resource("banner.txt")) as f:
+            print(f.read())
         self.app.setStyleSheet(open(self.get_resource('style.qss')).read())
-        # setWindowTitle("Penta Tournament Client")
+        self.config = Config(self.get_resource("preferences.json"),
+                             use_args=True, auto_update=False)
         self.load_palette()
-        self.api = APIBIND()
+        self.api = APIBIND(url=self.config["server-url"],
+                           protocol=self.config["protocol"],
+                           port=self.config["port"])
         self.connect()
 
     def connect(self):
@@ -262,12 +353,14 @@ class PentaTournament(ApplicationContext):
         self.log_in.show()
         self.username.setFocusPolicy(Qt.StrongFocus)
         self.username.setFocus()
+        logging.debug("Login Window created")
         return
 
     def _connect(self):
         try:
             self.api.connect(username=self.username.text(),
                              password=self.password.text())
+            logging.debug("Authentication sucessfull")
             self._username = self.username.text()
             self.log_in.close()
             self.create_fronted()
@@ -277,14 +370,14 @@ class PentaTournament(ApplicationContext):
         except APIException:
             error = """
             Server Seems to be sending faulty responses
-            Please Check your Network Connection
+            Please Check your Network Connection or the Backend server
+            If the issue is server side related, please create an realted issue
             """
             self.alert(error)
 
     def create_fronted(self):
         self.main_widget = QWidget()
         self.main_window = QMainWindow(parent=self.main_widget)
-        # add all widgets
         self.home_btn = QPushButton()
         self.home_btn.minimumSize()
         self.home_btn.setIcon(QIcon(self.get_resource("inapp.svg")))
@@ -369,48 +462,72 @@ class PentaTournament(ApplicationContext):
         self.frontend.setLayout(main_layout)
         self.main_window.setCentralWidget(self.frontend)
         self.main_window.showMaximized()
+        logging.debug("Main Window Created")
 
     def button1(self):
         self.update_home()
         self.right_widget.setCurrentIndex(0)
+        logging.debug("Home selected")
 
     def button2(self):
         self.update_tournaments()
         self.right_widget.setCurrentIndex(1)
+        logging.debug("Tournaments overview selected")
 
     def button3(self):
         self.update_leaderboard()
         self.right_widget.setCurrentIndex(2)
+        logging.debug("Leaderboard selected")
 
     def button4(self):
         self.right_widget.setCurrentIndex(3)
+        logging.debug("announcments selected")
 
     def button5(self):
         self.right_widget.setCurrentIndex(4)
+        logging.debug("Tournaments Manager selected")
 
     def clear_layout(self, layout):
         for i in reversed(range(layout.count())):
             layout.itemAt(i).widget().setParent(None)
+        logging.debug(f"Layout <{layout}> cleared")
         return
 
     def update_home(self):
         return
 
-    def tournament_focused(self, index):
-        row = self.your_tournaments_model.itemFromIndex(index)
-        self.ongoing_games_model.clear()
-        items, games = self.api.get_tournament_games(row.id, stringify=True,
-                                                     duo=True)
+    def tournament_focused(self, row, col):
+        row = self.your_tournaments.item(row, col)
+        self.ongoing_games.clear()
+        games = self.api.get_tournament_games(row.id)
+        self.ongoing_games.setRowCount(len(games))
+        columns = [None, "date", "players", "state"]
+        additions = ["Game", "", "Players: ", "State: "]
+        logging.debug(f"Tournament <{row.id}> clicked")
         if games is None:
             return
-        for i in range(len(games)):
-            item = QGameItem(games[i]["id"], games[i]["result"],
-                             items[i])
-            self.ongoing_games_model.appendRow(item)
+        for x in range(len(games)):
+            for i in range(len(columns)):
+                if columns[i] is None:
+                    cell_content = additions[i]
+                else:
+                    cell_content = additions[i] + str(games[x][columns[i]])
+                cell = QGameItem(games[x]["id"], games[x]["result"],
+                                 cell_content)
+                cell.setFlags(Qt.ItemIsEnabled)
+                self.ongoing_games.setItem(x, i, cell)
+
+    def Tournament_double_clicked(self, row, col):
+        return
 
     def game_focused(self, index):
-        row = self.your_tournaments_model.itemFromIndex(index)
         game = self.api.get_game(row.id)
+        game_highligth = QWidget()
+        game_highligth_layout = QBoxLayout()
+        game_highligth_box = QGroupBox()
+        game_highligth_box_layout = QGridLayout()
+        game_highligth_box_layout.addWidget(QLabel())
+        logging.debug(f"Game focused <{row.id}/{game['date']}>")
         game_widget = QWidget()
         game_widget.setWindowTitle(f"Game {game['id']} from {game['date']}")
         game_layout = QGridLayout()
@@ -419,27 +536,38 @@ class PentaTournament(ApplicationContext):
 
     def tournament_manage(self):
         self.manage = QWidget()
-        self.your_tournaments_box = QGroupBox("Your Tournaments")
-        self.your_tournaments_layout = QVBoxLayout()
         self.manage_layout = QGridLayout()
-        self.your_tournaments = QListView()
-        self.your_tournaments.clicked.connect(self.tournament_focused)
-        self.your_tournaments_model = QStandardItemModel()
-        items, tournaments = self.api.get_tournaments(personal=True, active=False,
-                                                      stringify=True, duo=True)
-        for i in range(len(items)):
-            item = QStandardTournamentItem(tournaments[i]["id"], items[i])  # random errors by active tournament
-            self.your_tournaments_model.appendRow(item)
-        self.your_tournaments.setModel(self.your_tournaments_model)
+        self.your_tournaments_box = QGroupBox("Your Tournaments")
+        self.your_tournaments_layout = QGridLayout()
+        self.your_tournaments = QTableWidget()
+        self.your_tournaments.verticalHeader().hide()
+        hheader = self.your_tournaments.horizontalHeader()
+        hheader.hide()
+        self.your_tournaments.cellClicked.connect(self.tournament_focused)
+        tournaments = self.api.get_tournaments(personal=True, active=False)
+        self.your_tournaments.setColumnCount(3)
+        self.your_tournaments.setRowCount(len(tournaments))
+        hheader.setSectionResizeMode(QHeaderView.Stretch)
+        columns = ["name", "maintainer_username", "date"]
+        additions = ["", "Maintained by ", ""]
+        for x in range(len(tournaments)):
+            for i in range(len(columns)):
+                cell_content = additions[i] + tournaments[x][columns[i]]
+                cell = QTournamentItem(tournaments[x]["id"], cell_content)
+                cell.setFlags(Qt.ItemIsEnabled)
+                self.your_tournaments.setItem(x, i, cell)
         self.your_tournaments.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.your_tournaments_layout.addWidget(self.your_tournaments)
+        self.your_tournaments_layout.addWidget(self.your_tournaments, 1, 0)
         self.your_tournaments_box.setLayout(self.your_tournaments_layout)
         self.manage_layout.addWidget(self.your_tournaments_box, 1, 0)
+        self.ongoing_games = QTableWidget()
+        self.ongoing_games.setColumnCount(4)
+        hheader = self.ongoing_games.horizontalHeader()
+        hheader.hide()
+        self.ongoing_games.verticalHeader().hide()
+        hheader.setSectionResizeMode(QHeaderView.Stretch)
         self.ongoing_games_box = QGroupBox("Ongoing Games")
         self.ongoing_games_layout = QVBoxLayout()
-        self.ongoing_games = QListView()
-        self.ongoing_games_model = QStandardItemModel()
-        self.ongoing_games.setModel(self.ongoing_games_model)
         self.ongoing_games.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.ongoing_games_layout.addWidget(self.ongoing_games)
         self.ongoing_games_box.setLayout(self.ongoing_games_layout)
@@ -493,7 +621,7 @@ class PentaTournament(ApplicationContext):
         self.leaderboard_layout.addWidget(QLabel("Top 100 Players - Updated every 24 Hours"), 0, 1)
         data = self.api.get_leaderboard()
         self.leaderboard_tableWidget = QTableWidget()
-        self.leaderboard_tableWidget.verticalHeader().setVisible(False)
+        self.leaderboard_tableWidget.verticalHeader().hide()
         _columns = ["Place", "name", "Score", "Last Tournament"]
         columns = ["id", "points", "username"]
         self.leaderboard_tableWidget.setColumnCount(len(columns))

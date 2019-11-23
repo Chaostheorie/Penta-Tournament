@@ -1,9 +1,8 @@
-import json
 from flask import render_template, g, request, abort, jsonify, make_response
-from datetime import date, datetime
+from datetime import datetime
 from sqlalchemy.exc import OperationalError
 from app.models import User, Tournaments
-from app.utils import requeries_json_keys, role_required
+from app.utils import requeries_json_keys
 from app import app, auth, db
 
 

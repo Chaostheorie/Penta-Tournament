@@ -1,5 +1,17 @@
 {
-  "config": {
-    "fullscreen_at_start": true
+  "enviroment": "default",
+  "default-config": {
+    "protocol": "http",
+    "server-url": "localhost",
+    "port": 5000,
+    "fullscreen_at_start": true,
+    "showLicenseatStartup": false,
+    "customStyle": true,
+    "customStyleSettings": {}
+  },
+  "experimental-config": {
+    "protocol": "http",
+    "server-url": "localhost:5000",
+    "enable-experimental-features": false
   }
 }

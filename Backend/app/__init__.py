@@ -30,3 +30,6 @@ atexit.register(lambda: cron.shutdown(wait=False))
 from app.routes import *
 from app.models import *
 db.create_all()
+
+with open("banner.txt") as f:
+    print(f.read())

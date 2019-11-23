@@ -19,4 +19,4 @@ db.session.commit()
 db.session.flush()
 
 
-print("User 'Johnson' with password 'admin was added'")
+print("User 'Johnson' with password 'admin' was added")
