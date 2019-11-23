@@ -27,7 +27,9 @@ class Config(object):
 
     # Secret key for sessions of flask users
     # change it before using in anything that could be attacked
-    SECRET_KEY = os.getenv("SECRET_KEY") or "secretestkey6+5+655+65+5+65ß##+45"
+    # Deploy will use "Secure Key" in the future due to issues it's not added yet
+    # <https://devcenter.heroku.com/articles/securekey>
+    SECRET_KEY = os.environ["SECRET_KEY"] or os.urandom(36)
 
     # Database Url
     # Default is a file based sqlite3 databse in the static/databse folder
