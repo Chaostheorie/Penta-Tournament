@@ -33,8 +33,11 @@ class Config(object):
 
     # Database Url
     # Default is a file based sqlite3 databse in the static/databse folder
-    SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL'] or \
-        "sqlite:///" + os.path.join(basedir, "app.db")
+    try:
+        SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
+    except KeyError:
+        SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(basedir,
+                                                              "app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Flask-User settings

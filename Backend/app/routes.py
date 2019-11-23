@@ -1,7 +1,7 @@
 from flask import render_template, g, request, abort, jsonify, make_response
 from datetime import datetime
 from sqlalchemy.exc import OperationalError
-from app.models import User, Tournaments
+from app.models import User, Tournaments, TournamentPlayers
 from app.utils import requeries_json_keys
 from app import app, auth, db
 
@@ -67,14 +67,19 @@ def new_user():
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
-@requeries_json_keys(["name", "day", "duration"])
+@requeries_json_keys(["name", "day", "duration",
+                      "description", "participants"])
 def create_tournament():
     r = request.get_json()
     try:
         t = Tournaments(name=r["name"], maintainer_id=g.user.id,
-                        duration=r["duration"],
-                        day=datetime.strptime(r["day"], "%d.%m.%Y").date())
+                        duration=int(r["duration"]),
+                        description=r["description"],
+                        date=datetime.strptime(r["date"], "%d.%m.%Y").date())
         db.session.add(t)
+        db.setsion.flush()
+        [db.session.add(TournamentPlayers(user_id=id, tournament_id=t.id))
+         for id in r["participants"]]
         db.session.commit()
     except OperationalError:
         db.session.rollback()
