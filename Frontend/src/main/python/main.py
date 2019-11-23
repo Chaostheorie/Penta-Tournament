@@ -90,6 +90,11 @@ class APIBIND:
         else:
             return self.parse_list(r)
 
+    def create_tournament(name, duration, date, description, participants):
+        paylod = dict(name=name, duration=duration, description=description,
+                      participants=participants)
+        return self.request("/tournament/create", paylod, "PUT")
+
     def game_stringify(self, games, ongoing=False):
         results = []
         for data in games:
@@ -116,6 +121,12 @@ class APIBIND:
     def get_user_games(self, limit=10, stringify=False):
         """Get games """
         return
+
+    def get_players(self, limit=100):
+        """Gets list of players"""
+        payload = {"limit": limit}
+        r = self.request("user/list", payload, "GET")
+        return self.parse_list(r)
 
     def get_leaderboard(self, down_to=100):
         payload = {"down_to": down_to}
@@ -197,6 +208,8 @@ class APIBIND:
                                                 access {endpoint}")
             elif r.status_code == 500:
                 raise APIException("Server Side Error - Report was send")
+            elif r.status_code == 503:
+                raise APIException("Server is down for maintainece or high load")
             elif r.status_code == 401:
                 raise CredentialsExption("User not logged in")
             else:
@@ -293,6 +306,13 @@ class QTournamentItem(QTableWidgetItem):
         self.id = id
         super().__init__(*args, **kwargs)
         logging.debug(f"QTournamentItem <{id}> created")
+
+
+class QPlayerItem(QStandardItem):
+    def __init__(self, id, *args, **kwargs):
+        self.id = id
+        super().__init__(*args, **kwargs)
+        logging.debug(f"QPlayerItem <{id}> created")
 
 
 class QGameItem(QTableWidgetItem):
@@ -556,6 +576,21 @@ class PentaTournament(ApplicationContext):
                 self.your_tournaments.setItem(x, i, cell)
         self.your_tournaments.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.your_tournaments_layout.addWidget(self.your_tournaments, 1, 0)
+        manage_box = QGroupBox()
+        manage_box.setTitle("")
+        manage_box.setStyleSheet("QGroupBox {border:none;}")
+        manage_box_layout = QHBoxLayout()
+        self.create_tournament_btn = QPushButton("Create New")
+        self.archived_tournaments_btn = QPushButton("View Archive")
+        self.create_tournament_btn.clicked.connect(self.create_tournament)
+        self.archived_tournaments_btn.clicked.connect(self.view_archived)
+        StyleSheet = "QPushButton {color: white;}"
+        self.create_tournament_btn.setStyleSheet(StyleSheet)
+        self.archived_tournaments_btn.setStyleSheet(StyleSheet)
+        manage_box_layout.addWidget(self.create_tournament_btn)
+        manage_box_layout.addWidget(self.archived_tournaments_btn)
+        manage_box.setLayout(manage_box_layout)
+        self.your_tournaments_layout.addWidget(manage_box)
         self.your_tournaments_box.setLayout(self.your_tournaments_layout)
         self.manage_layout.addWidget(self.your_tournaments_box, 1, 0)
         self.ongoing_games = QTableWidget()
@@ -572,6 +607,73 @@ class PentaTournament(ApplicationContext):
         self.manage_layout.addWidget(self.ongoing_games_box, 1, 1)
         self.manage.setLayout(self.manage_layout)
         return self.manage
+
+    def create_tournament(self):
+        self.create_widget = QWidget()
+        create_layout_left = QVBoxLayout()
+        create_layout_rigth = QVBoxLayout()
+        create_layout = QHBoxLayout()
+        self.tournament_name = QLineEdit()
+        self.tournament_name.setPlaceholderText("Name")
+        self.tournament_description = QTextEdit()
+        self.tournament_description.setPlaceholderText("Description")
+        self.tournament_date = QDateEdit()
+        self.tournament_duration = QLineEdit()
+        self.tournament_duration.setPlaceholderText("Duration")
+        self.tournament_duration.setValidator(QIntValidator(1, 120))
+        self.tournament_participants = QListView()
+        player_model = QStandardItemModel()
+        for player in self.api.get_players(limit=None):
+            item = QPlayerItem(player["id"], player["username"])
+            item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            item.setData(QVariant(Qt.Checked), Qt.CheckStateRole)
+            player_model.appendRow(item)
+        self.tournament_participants.setModel(player_model)
+        create_button = QPushButton("Create")
+        create_button.setStyleSheet("QPushButton {color:white;}")
+        create_button.clicked.connect(self._create_tournament)
+        create_layout_left.addWidget(self.tournament_name)
+        create_layout_left.addWidget(self.tournament_description)
+        date_box = QGroupBox()
+        date_box.setStyleSheet("QGroupBox {border:none;}")
+        date_box_layout = QHBoxLayout()
+        date_box_layout.addWidget(self.tournament_date)
+        date_box_layout.addWidget(self.tournament_duration)
+        date_box.setLayout(date_box_layout)
+        create_layout_left.addWidget(date_box)
+        create_layout_left.addWidget(create_button)
+        create_layout_rigth.addWidget(self.tournament_participants)
+        create_left_widget = QWidget()
+        create_rigth_widget = QWidget()
+        create_left_widget.setLayout(create_layout_left)
+        create_rigth_widget.setLayout(create_layout_rigth)
+        create_layout.addWidget(create_left_widget)
+        create_layout.addWidget(create_rigth_widget)
+        self.create_widget.setLayout(create_layout)
+        qr = self.create_widget.frameGeometry()
+        cp = QDesktopWidget().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.create_widget.move(qr.topLeft())
+        self.create_widget.show()
+        self.create_widget.setFocusPolicy(Qt.StrongFocus)
+        self.create_widget.setFocus()
+
+    def _create_tournament(self):
+        rows = self.tournament_participants.model().rowCount()
+        participants = [self.tournament_participants.model().item(i).id
+                        for i in range(rows)]
+        self.api.create_tournament(name=self.tournament_name.text(),
+                                   date=self.tournament_date.dateTime(),
+                                   duration=self.tournament_duration.text(),
+                                   description=self.tournament_description.toPlainText(),
+                                   participants=participants)
+        self.alert(f"Tournament '{self.tournament_name.text()}' created")
+        self.create_widget.close()
+        self.main_widget.setFocus()
+        return
+
+    def view_archived(self):
+        return
 
     def update_tournaments(self):
         self.clear_layout(self.to_layout)
