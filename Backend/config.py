@@ -29,7 +29,7 @@ class Config(object):
     # change it before using in anything that could be attacked
     # Deploy will use "Secure Key" in the future due to issues it's not added yet
     # <https://devcenter.heroku.com/articles/securekey>
-    SECRET_KEY = os.environ["SECRET_KEY"] or os.urandom(36)
+    SECRET_KEY = os.urandom(36)  # os.environ["SECRET_KEY"]
 
     # Database Url
     # Default is a file based sqlite3 databse in the static/databse folder
