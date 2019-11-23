@@ -156,6 +156,7 @@ class Tournaments(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     name = db.Column(db.String(50))
     date = db.Column(db.Date())
+    description = db.Column(db.String(250))
     duration = db.Column(db.Integer(), server_default="1", nullable=False)
     maintainer_id = db.Column(db.Integer(), db.ForeignKey("user.id"))
     tournament_games = db.relationship("Games", secondary="tournament_games",

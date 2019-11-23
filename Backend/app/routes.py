@@ -39,6 +39,16 @@ def get_leaderboard():
     return jsonify(User.get_leaderboard(limit=limit))
 
 
+@app.route("/api/user/list", methods=["GET"])
+def list_players():
+    limit = request.args.get("limit", default=100)
+    if limit is None:
+        players = [user.jsonify for user in User.query.all()]
+    else:
+        players = [user.jsonify for user in User.query.limit(limit).all()]
+    return players
+
+
 @app.route("/api/user/sign-up", methods=["POST"])
 @requeries_json_keys(["username", "password"])
 def new_user():
