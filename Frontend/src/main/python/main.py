@@ -93,8 +93,9 @@ class APIBIND:
     def create_tournament(self, name, duration, date,
                           description, participants):
         paylod = dict(name=name, duration=duration, description=description,
-                      participants=participants)
-        return self.request("/tournament/create", paylod, "PUT")
+                      participants=participants, date=date.toString()
+                      )
+        return self.request("tournaments/create", paylod, "POST")
 
     def game_stringify(self, games, ongoing=False):
         results = []
@@ -669,7 +670,7 @@ class PentaTournament(ApplicationContext):
                                    description=self.tournament_description.toPlainText(),
                                    participants=participants)
         self.alert(f"Tournament '{self.tournament_name.text()}' created")
-        self.create_widget.close()
+        self.create_widget.hide()
         self.main_widget.setFocus()
         return
 
@@ -678,6 +679,7 @@ class PentaTournament(ApplicationContext):
 
     def update_tournaments(self):
         self.clear_layout(self.to_layout)
+        self.to_layout = QVBoxLayout()
         for tournament in self.api.get_tournaments():
             to_layout = QHBoxLayout()
             to_layout.addWidget(QLabel(tournament["name"]))
@@ -687,6 +689,7 @@ class PentaTournament(ApplicationContext):
             to = QWidget()
             to.setLayout(to_layout)
             self.to_layout.addWidget(to)
+        self.to.setLayout(self.to_layout)
         self.to.show()
         return
 
