@@ -9,7 +9,8 @@
   },
   "experimental-config": {
     "protocol": "http",
-    "server-url": "localhost:5000",
+    "server-url": "localhost",
+    "port": 5000,
     "enable-experimental-features": false,
     "customStyle": true,
     "customStyleSettings": {}

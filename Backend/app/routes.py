@@ -1,5 +1,6 @@
+import logging
 from flask import render_template, g, request, abort, jsonify, make_response
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy.exc import OperationalError
 from app.models import User, Tournaments, TournamentPlayers
 from app.utils import requeries_json_keys
@@ -15,6 +16,7 @@ def index():
 @auth.login_required
 def get_auth_token():
     refresh_token, token = g.user.generate_auth_token()
+    logging.debug(f"User {g.user.username} authenticated")
     return jsonify({"token": token.decode("ascii"),
                     "id": g.user.id,
                     "refresh_token": refresh_token.decode("ascii")})
@@ -63,10 +65,13 @@ def new_user():
     user.hash_password(password)
     db.session.add(user)
     db.session.commit()
+    db.session.flush()
+    logging.debug(f"User {user.username} created")
     return jsonify({"username": user.username}), 201
 
 
 @app.route("/api/tournaments/create", methods=["POST"])
+@auth.login_required
 @requeries_json_keys(["name", "date", "duration",
                       "description", "participants"])
 def create_tournament():
@@ -75,16 +80,18 @@ def create_tournament():
         t = Tournaments(name=r["name"], maintainer_id=g.user.id,
                         duration=int(r["duration"]),
                         description=r["description"],
-                        date=datetime.strptime(r["date"], "%d.%m.%Y").date())
+                        date=date.fromisoformat(r["date"][:10]))
         db.session.add(t)
-        db.setsion.flush()
+        db.session.flush()
         [db.session.add(TournamentPlayers(user_id=id, tournament_id=t.id))
          for id in r["participants"]]
         db.session.commit()
-    except OperationalError:
+    except OperationalError as e:
+        logging.debug(f"Operationaleroor {e}")
         db.session.rollback()
         return abort(400)
-    except ValueError:
+    except ValueError as e:
+        logging.debug(f"ValueError {e}")
         db.session.rollback()
         return abort(400)
     return jsonify(t.jsonify())
@@ -132,9 +139,12 @@ def get_tournament_info(id):
 
 
 @app.route("/api/tournament/<int:id>/edit", methods=["POST"])
+@auth.login_required
 @requeries_json_keys(["duration", "date", "name", "maintainer_id"])
 def edit_tournament(id):
     t = Tournaments.get_or_404(id)
+    print(g)
+    print(dir(g))
     if g.user == t.maintainer:
         r = request.get_json()
         t.name = r["name"]
@@ -157,6 +167,7 @@ def edit_tournament(id):
 
 
 @app.route("/api/tournament/<int:id>/delete", methods=["DELETE"])
+@auth.login_required
 def delete_tournament(id):
     t = Tournaments.get_or_404(id)
     if t.maintainer == g.user:

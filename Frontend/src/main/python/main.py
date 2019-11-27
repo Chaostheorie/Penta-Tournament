@@ -40,13 +40,16 @@ class APIBIND:
             self.username = username
 
     def connect(self, username, password):
-        auth = requests.auth.HTTPBasicAuth(username=username,
-                                           password=password)
-        r = self.session.get(f"{self.url}user/token", auth=auth)
+        self.auth = requests.auth.HTTPBasicAuth(username=username,
+                                                password=password)
+        r = self.session.get(f"{self.url}user/token", auth=self.auth)
         if r.status_code != 200:
             raise CredentialsExption("Password or Username is Wrong")
         try:
             r = r.json()
+            logging.debug(f"ID: {r['id']}")
+            logging.debug(f"TOKEN: {r['token']}")
+            logging.debug(f"TOKEN: {r['refresh_token']}")
             self.token = r["token"]
             self.id = r["id"]
             self.refresh_token = r["refresh_token"]
@@ -54,11 +57,13 @@ class APIBIND:
             raise APIException("Server Response Invalid")
 
     def renew_token(self):
-        paylod = {"refresh_token": self.refresh_token, "password": None}
-        r = self.request("user/token", payload,
+        payload = {"refresh_token": self.refresh_token, "password": None}
+        r = self.request("user/token", payload, renew=False,
                          credentials=False, refresh=False, method="GET")
         if r.status_code == 400:
             pass
+        elif r.status_code == 401:
+            raise APIException("The authentication is buggy")
         r = r.json()
         self.token = r["token"]
         self.refresh_token = r["refresh_token"]
@@ -78,7 +83,7 @@ class APIBIND:
 
     def get_tournament_games(self, id, duo=False, stringify=False,
                              ongoing=False, limit=None, load_players=False):
-        """Get games related to tournaments
+        """Get games related to tournamentspayload
            Note: duo allows double output with stringify"""
         payload = dict(limit=limit, ongoing=ongoing, load_players=load_players)
         r = self.request(f"tournament/{id}/games", payload, "GET")
@@ -93,8 +98,8 @@ class APIBIND:
     def create_tournament(self, name, duration, date,
                           description, participants):
         paylod = dict(name=name, duration=duration, description=description,
-                      participants=participants, date=date.toString()
-                      )
+                      participants=participants,
+                      date=date.toString(Qt.ISODate))
         return self.request("tournaments/create", paylod, "POST")
 
     def game_stringify(self, games, ongoing=False):
@@ -184,25 +189,39 @@ class APIBIND:
         return changelog.text
 
     def request(self, endpoint, payload=[], method="POST",
-                credentials=True, refresh=True):
-        if credentials and method != "GET" and payload != []:
-            payload["username"] = self.token
-            payload["password"] = None
+                credentials=True, refresh=True, renew=True):
+        if credentials and (method != "GET") and payload != []:
+            auth = True
+        else:
+            auth = False
         payload = json.dumps(payload)
         url = self.url + endpoint
         if method == "POST":
-            r = self.session.post(url, data=payload)
+            if not auth:
+                r = self.session.post(url, data=payload)
+            else:
+                r = self.session.post(url, data=payload, auth=self.auth)
         elif method == "PUT":
-            r = self.session.put(url, payload)
+            if not auth:
+                r = self.session.put(url, payload)
+            else:
+                r = self.session.put(url, payload, auth=self.auth)
         elif method == "GET":
-            r = self.session.get(url, params=payload)
+            if not auth:
+                r = self.session.get(url, params=payload)
+            else:
+                r = self.session.get(url, params=payload, auth=self.auth)
         elif method == "DELETE":
-            r = self.session.delete(url, payload)
+            if not auth:
+                r = self.session.delete(url, payload)
+            else:
+                r = self.session.delete(url, payload, auth=self.auth)
         else:
             raise APIException(f"Method '{method}' not allowed")
         if r.status_code != 200:
             if r.status_code == 401:
-                self.renew_token()
+                if renew:
+                    self.renew_token()
             elif r.status_code == 404:
                 raise APIException(f"endpoint '{endpoint}' not found")
             elif r.status_code == 403:
@@ -505,6 +524,19 @@ class PentaTournament(ApplicationContext):
 
     def button5(self):
         self.right_widget.setCurrentIndex(4)
+        self.your_tournaments.clear()
+        tournaments = self.api.get_tournaments(personal=True, active=False)
+        self.your_tournaments.setColumnCount(3)
+        self.your_tournaments.setRowCount(len(tournaments))
+        columns = ["name", "maintainer_username", "date"]
+        additions = ["", "Maintained by ", ""]
+        for x in range(len(tournaments)):
+            for i in range(len(columns)):
+                cell_content = additions[i] + tournaments[x][columns[i]]
+                cell = QTournamentItem(tournaments[x]["id"], cell_content)
+                cell.setFlags(Qt.ItemIsEnabled)
+                self.your_tournaments.setItem(x, i, cell)
+        self.your_tournaments.setEditTriggers(QAbstractItemView.NoEditTriggers)
         logging.debug("Tournaments Manager selected")
 
     def clear_layout(self, layout):
