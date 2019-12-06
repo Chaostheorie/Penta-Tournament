@@ -80,7 +80,7 @@ def create_tournament():
         t = Tournaments(name=r["name"], maintainer_id=g.user.id,
                         duration=int(r["duration"]),
                         description=r["description"],
-                        date=date.fromisoformat(r["date"][:10]))
+                        date=datetime.fromisoformat(r["date"][:10]).date())
         db.session.add(t)
         db.session.flush()
         [db.session.add(TournamentPlayers(user_id=id, tournament_id=t.id))

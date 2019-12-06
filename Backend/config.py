@@ -57,7 +57,6 @@ class Config(object):
     USER_EMAIL_MIN_LEN = 5
 
 
-
 class devconfig(Config):
     # Development specific settings
     DEBUG = True
