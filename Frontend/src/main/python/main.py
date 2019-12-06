@@ -704,6 +704,7 @@ class PentaTournament(ApplicationContext):
         self.alert(f"Tournament '{self.tournament_name.text()}' created")
         self.create_widget.hide()
         self.main_widget.setFocus()
+        self.tournament_manage_btn.click()
         return
 
     def view_archived(self):
