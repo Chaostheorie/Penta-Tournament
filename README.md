@@ -6,59 +6,21 @@ Web app for managing of Penta Game tournaments
 
 - Managing of tournaments by using switzer system
 - Log results of players by account system
-- Organizing evemts and making announcments over rules (rulesets) for events
+- Organizing events and making announcements over rules (rulesets) for events
 - Getting Intel about the next event in the Penta Game world
 
 ## GUI app
 
 - Python 3.6+
-- PyQt5 gui applicatin (through fbs) for Linux/ MacOS and Windows
-- RESTful API backend with User authentification and token based session implementation
-
-## WebAPI
-
-- RESTful web API with Role based Authorization
-
-![](https://github.com/Chaostheorie/Penta-Tournament/blob/master/diagram.svg)
-
-- Allows the client (and everyone else) to access te full data
-
-For everything else like License etc. See credits.txt in frontend/src/main/resources/base
+- PyQt5 gui application (through fbs) for Linux/ MacOS and Windows
+- RESTful API backend with User authentication and token based session implementation
 
 # Installation
 
-Penta Tournament consists of two different parts. At the moment the `Frontend` points all of the requests to `http://localhost/api` e.g. the `Backend` Flask server should be running on the same machine. This will be changed in the future. Out of the box there is no Data included.
+The recommended installation is done via the prepackaged releases available at [Fronted/releases](https://github.com/Chaostheorie/Penta-Tournament-Frontend/releases).
 
-First clone/ download the repository:
+We recommend changing the preferences.json in the installation directory to your own settings e.g. the location of your Backend server. At the moment we only provide access to a free heroku dyno running the latest development version, which is sometimes broken, because it's build from the [Penta-Tournament-Backend/Backend](https://github.com/Chaostheorie/Penta-Tournament-Backend) repository.
 
-```bash
-git clone https://github.com/Chaostheorie/Penta-Tournament.git && cd Penta-Tournament
-```
+# Installation for contributing/ development
 
-For installation of the dependencies for the RESTful API start with:
-
-```bash
-pip3 install -r Backend/requirements.txt
-```
-
-Now you can run a local development Flask server:
-
-```bash
-cd Backend && python3 main.py
-```
-
-Now open a new bash/ shell and go to the the `Penta-Tournament/Frontend` Folder and execute:
-
-```bash
-pip3 install -r Backend/requirements.txt
-```
-
-Now you need to start the application with:
-
-```bash
-fbs run
-```
-
-Now as a recommendation for some Sample Data you could run `user.py` in the Backend directory for adding a sample data to the application.
-
-IMPORTANT NOTICE: if the build is broken or throws errors please don't email me and instead create a issue. It could happen that the application throws debug at you.
+Will be available soon.
